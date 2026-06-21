@@ -46,7 +46,7 @@ These constraints drive every decision below:
 ```
 tekashi-side/Findias (GitHub)        Root50199/Uiscias (GitHub)
         │ Releases                            │ Releases
-        │  └─ Findias-Setup-x.y.z.exe         │  └─ uiscias<Name>_<n>.it  (mod assets)
+        │  └─ Findias-Setup-x.y.z.exe         │  └─ Uiscias<Name>_<n>.it  (mod assets)
         ▼                                     ▼
    user downloads & runs            Findias reads release[0] assets,
    the Findias app  ───────────────► downloads chosen mods directly
@@ -65,7 +65,7 @@ Electron splits into three contexts. Keeping a strict boundary is the core
 security/architecture decision.
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
+┌────────────────────────────────────────────────────────────────────┐
 │  Renderer process (Chromium)                                       │
 │  - UI only: mod list, buttons, progress, settings screen           │
 │  - NO direct Node fs/net access (contextIsolation on,              │
@@ -74,19 +74,19 @@ security/architecture decision.
 └───────────────┬────────────────────────────────────────────────────┘
                 │  IPC (typed request/response + events)
 ┌───────────────▼────────────────────────────────────────────────────┐
-│  Preload script                                                     │
+│  Preload script                                                    │
 │  - contextBridge.exposeInMainWorld('findias', {...})               │
-│  - Thin, allow-listed wrapper over ipcRenderer.invoke/on            │
-│  - No business logic                                                │
+│  - Thin, allow-listed wrapper over ipcRenderer.invoke/on           │
+│  - No business logic                                               │
 └───────────────┬────────────────────────────────────────────────────┘
                 │  ipcMain.handle(...)
 ┌───────────────▼────────────────────────────────────────────────────┐
-│  Main process (Node)                                                │
+│  Main process (Node)                                               │
 │  - All filesystem, network, and dialog operations                  │
 │  - Owns the canonical in-memory app state                          │
 │  - Modules: SettingsStore, GameLocation, PackageScanner,           │
 │    ReleaseClient, ModResolver, ModInstaller, Downloader            │
-└──────────────────────────────────────────────────────────────────┘
+└────────────────────────────────────────────────────────────────────┘
 ```
 
 Security posture (non-negotiable defaults): `contextIsolation: true`,
@@ -160,10 +160,10 @@ Example of the response shape we depend on (verified against the live repo):
   "draft": false,
   "assets": [
     {
-      "name": "uisciasDDtimer_00005.it",
+      "name": "UisciasDDtimer_00005.it",
       "size": 135779,
       "content_type": "application/octet-stream",
-      "browser_download_url": "https://github.com/Root50199/Uiscias/releases/download/<tag>/uisciasDDtimer_00005.it"
+      "browser_download_url": "https://github.com/Root50199/Uiscias/releases/download/<tag>/UisciasDDtimer_00005.it"
     }
   ]
 }
@@ -224,16 +224,16 @@ Findias standardizes on the managed convention from
 [`project-overview.md`](./project-overview.md#managed-mod-naming):
 
 ```
-uiscias<ModFileName>_<number>.it
+Uiscias<ModFileName>_<number>.it
 ```
 
-- **Identity (`modId`)** = `<ModFileName>` (the segment between the `uiscias`
+- **Identity (`modId`)** = `<ModFileName>` (the segment between the `Uiscias`
   prefix and the final `_`). Stable across versions; used as the key to match an
   installed file to a release asset.
 - **Version** = `<number>`, parsed as an **integer** for comparison. Even though
   the convention is zero-padded, the parser compares numerically so padding width
   never affects ordering.
-- **Ownership** = the `uiscias` prefix marks files Findias may manage. Files
+- **Ownership** = the `Uiscias` prefix marks files Findias may manage. Files
   without it are out of scope and never touched.
 
 A single shared parser/validator is used by **both** the package scanner and the
@@ -241,7 +241,7 @@ release client, so on-disk files and release assets are interpreted identically.
 
 ```ts
 // Single source of truth for the grammar (illustrative)
-const MANAGED = /^uiscias(?<name>[^_]+)_(?<version>\d{1,5})\.it$/;
+const MANAGED = /^Uiscias(?<name>[^_]+)_(?<version>\d{1,5})\.it$/;
 
 interface ParsedMod {
   fileName: string;   // exact file name on disk / asset name
@@ -251,7 +251,7 @@ interface ParsedMod {
 ```
 
 > **Upstream dependency.** Per project decision, the canonical naming convention
-> is owned upstream: the Uiscias maintainer adopts `uiscias<ModFileName>_<number>.it`
+> is owned upstream: the Uiscias maintainer adopts `Uiscias<ModFileName>_<number>.it`
 > as the published contract for release assets. Findias's parser is **strict**
 > about what qualifies as a managed mod but **tolerant** of non-conforming files
 > (it skips them rather than erroring). See the migration note below.
@@ -259,7 +259,7 @@ interface ParsedMod {
 ### Migration / transition handling
 
 At the time of writing, the live Uiscias release assets do **not** yet use the
-`uiscias` prefix (e.g. `DDtimer_00005.it`, `Crom_2.it`). Until the upstream
+`Uiscias` prefix (e.g. `DDtimer_00005.it`, `Crom_2.it`). Until the upstream
 release adopts the convention, a strict parser yields an **empty managed-mod
 list**. The architecture handles this gracefully:
 
@@ -313,7 +313,7 @@ installOrUpdate(modId)
   → resolve release asset for modId
   → stream download browser_download_url → package/<tempfile>
      (emit onDownloadProgress)
-  → atomic rename → package/uiscias<modId>_<n>.it
+  → atomic rename → package/Uiscias<modId>_<n>.it
   → re-scan + re-resolve → return ModListState
 ```
 
@@ -344,8 +344,8 @@ deleteMod(modId)
 
 ```
 setDisabled(modId, true)
-  → fs.rename package/uiscias<modId>_<n>.it
-            → package/<disabledSubfolder>/uiscias<modId>_<n>.it
+  → fs.rename package/Uiscias<modId>_<n>.it
+            → package/<disabledSubfolder>/Uiscias<modId>_<n>.it
 setDisabled(modId, false) → reverse the move
 ```
 
@@ -406,5 +406,5 @@ interface AppState {
 
 - No background auto-updating, telemetry, or analytics.
 - No packing/repacking of raw mod content (handled upstream in Uiscias).
-- No management of non-`uiscias` `.it` files.
+- No management of non-`Uiscias` `.it` files.
 - No authenticated GitHub access or tokens (unauthenticated is sufficient).

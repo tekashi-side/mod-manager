@@ -50,10 +50,10 @@ mods. They build on the game's `.it` naming rules documented in
 Findias uses the following format for all mods it installs and maintains:
 
 ```
-uiscias<ModFileName>_<number>.it
+Uiscias<ModFileName>_<number>.it
 ```
 
-- The `uiscias` prefix marks the file as installed/maintained by Findias, so we
+- The `Uiscias` prefix marks the file as installed/maintained by Findias, so we
   can reliably identify our own files in the `package` folder.
 - `<ModFileName>` is the descriptive name of the mod (e.g. `SomeModFileName`).
 - `<number>` represents the **version** of the mod and is incremented with each
@@ -61,10 +61,10 @@ uiscias<ModFileName>_<number>.it
 
 Versioning example:
 
-- `uisciasSomeModFileName_00001.it` — version 1 of the `SomeModFileName` mod.
-- `uisciasSomeModFileName_00002.it` — version 2 of the same mod.
+- `UisciasSomeModFileName_00001.it` — version 1 of the `SomeModFileName` mod.
+- `UisciasSomeModFileName_00002.it` — version 2 of the same mod.
 
-Because the prefix begins with `u` (a letter after `d`) and contains no extra
+Because the prefix begins with `U` (a letter after `d`) and contains no extra
 underscores before the `_<number>` suffix, this convention satisfies the game's
 naming rules.
 
@@ -72,7 +72,7 @@ naming rules.
 
 Findias must ensure that **only the latest version** of any given mod exists in
 the `package` folder at a time. There should **never** be both
-`uisciasSomeModFileName_00001.it` and `uisciasSomeModFileName_00002.it` present
+`UisciasSomeModFileName_00001.it` and `UisciasSomeModFileName_00002.it` present
 simultaneously.
 
 The game client loads every `.it` file in the root of `package` and does not
@@ -82,11 +82,11 @@ for why duplicate versions cause conflicts.
 
 Therefore, whenever Findias updates a mod, it must:
 
-1. Write the new version file (e.g. `uisciasSomeModFileName_00002.it`).
-2. **Delete the old version file** (e.g. `uisciasSomeModFileName_00001.it`).
+1. Write the new version file (e.g. `UisciasSomeModFileName_00002.it`).
+2. **Delete the old version file** (e.g. `UisciasSomeModFileName_00001.it`).
 
 In other words, updating a mod is a **replace** operation — exactly one file per
-mod (identified by its `uiscias<ModFileName>` portion) should ever be in
+mod (identified by its `Uiscias<ModFileName>` portion) should ever be in
 `package`.
 
 ### Temporarily disabling mods
@@ -105,7 +105,7 @@ subfolders — see [`game-structure.md`](./game-structure.md).
    where to operate.
 3. **Scan installed mods** — scan the `package` folder in the root game folder
    for all mod files that match the Findias naming convention
-   (`uiscias<ModFileName>_<number>.it`). This list acts as the local source of
+   (`Uiscias<ModFileName>_<number>.it`). This list acts as the local source of
    truth for which mods are currently installed and at what version.
 4. **Check latest Uiscias release** — read the files in the latest Uiscias
    GitHub release to know which mods can currently be installed or updated.
@@ -132,5 +132,5 @@ subfolders — see [`game-structure.md`](./game-structure.md).
 
 - Creating or editing mod content itself (packing/repacking raw files). Mod
   authoring is handled upstream in the Uiscias repository and its tooling.
-- Managing non-Uiscias mods. Findias focuses on mods identified by the `uiscias`
+- Managing non-Uiscias mods. Findias focuses on mods identified by the `Uiscias`
   prefix; other `.it` files in `package` are left untouched.
