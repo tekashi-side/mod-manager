@@ -1,8 +1,8 @@
 import { join } from 'node:path'
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
-import { IpcChannels, type AppInfo } from '../shared/api'
+import { app, BrowserWindow, shell } from 'electron'
+import { registerIpcHandlers } from './ipc'
 
-function createWindow(): void {
+const createWindow = (): void => {
   const window = new BrowserWindow({
     width: 720,
     height: 560,
@@ -35,20 +35,8 @@ function createWindow(): void {
   }
 }
 
-function registerIpc(): void {
-  ipcMain.handle(
-    IpcChannels.getAppInfo,
-    (): AppInfo => ({
-      appVersion: app.getVersion(),
-      electronVersion: process.versions.electron,
-      chromeVersion: process.versions.chrome,
-      nodeVersion: process.versions.node
-    })
-  )
-}
-
 void app.whenReady().then(() => {
-  registerIpc()
+  registerIpcHandlers()
   createWindow()
 
   app.on('activate', () => {

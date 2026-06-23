@@ -14,12 +14,12 @@
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "types": ["node"],
     "paths": {
-      "@renderer/*": ["./src/renderer/src/*"],
+      "@renderer/*": ["./src/renderer/*"],
       "@shared/*": ["./src/shared/*"]
     }
   },
   "include": [
-    "src/renderer/src/**/*",
+    "src/renderer/**/*",
     "src/preload/index.d.ts",
     "src/shared/**/*"
   ]

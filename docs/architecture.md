@@ -36,9 +36,10 @@ These constraints drive every decision below:
 | Component library | **MUI (Material UI)** | Ready-made, accessible components (lists, buttons, dialogs, progress) so we build the UI quickly with a consistent look. |
 | Renderer async state | **TanStack Query (React Query)** | Manages loading/error/stale state, de-dupes requests, and invalidates after mutations. It wraps the IPC calls — it does **not** perform networking itself (see note). |
 | Network | **`fetch`** (in the main process) | Standard WHATWG API built into Node 18+; follows redirects; trivially mockable in Vitest. All network calls live in the main process, never the renderer. |
+| Validation | **zod** | Validates all untrusted JSON at the boundary (settings file, GitHub release/manifest JSON). Schemas are the single source of truth — the TS types are derived via `z.infer`, never declared twice. See note below. |
 | Filesystem | Node `fs` / `fs/promises`, `path` | Built in; all package-folder operations. |
 | Folder picker | Electron `dialog.showOpenDialog` | Built in; native directory chooser. |
-| Settings store | JSON file in `app.getPath('userData')` | Built in; no `electron-store` strictly required. |
+| Settings store | JSON file in `app.getPath('userData')`, validated with zod | Built in; no `electron-store` strictly required. |
 | Tests | **Vitest** | Pairs with Vite (shares config/transform), fast, Jest-compatible API; used for unit tests of parsers, providers, resolver, and flows. |
 | Packaging | **electron-builder** (dev-only dependency) | Produces a Windows installer / portable `.exe` to attach to the Findias Releases page. |
 | App self-update | **electron-updater** (GitHub provider) | Lets a running Findias check the `tekashi-side/Findias` releases feed and prompt the user to update — no manual re-download. See [App self-update](#app-self-update). |
@@ -86,6 +87,30 @@ useMutation({
 Because every mutating IPC call already returns the fresh `ModListState`, React
 Query can also seed the cache directly from the mutation result and skip a
 re-fetch.
+
+### Validation with zod
+
+Every place Findias ingests **untrusted JSON** validates it with a zod schema
+rather than trusting a TypeScript cast (`as`). This covers the local settings
+file today, and will cover the GitHub release/manifest JSON in the catalog
+provider. Rules:
+
+- The **schema is the single source of truth**; the matching TypeScript type is
+  derived with `z.infer`, so a shape is never declared in two places.
+- Schemas live in a shared module and are imported wherever the type/validator
+  is needed (main, preload, or renderer) — no duplicated definitions.
+- Parsing uses `safeParse` and degrades gracefully: invalid/missing fields fall
+  back to defaults (via per-field `.catch`), and wholly invalid input returns a
+  safe default, so a corrupt file or unexpected API payload never crashes the app.
+
+Example — the settings schema is the source for both validation and the type:
+
+```ts
+export const settingsSchema = z.object({
+  gameRootPath: z.string().nullable().catch(null)
+})
+export type Settings = z.infer<typeof settingsSchema>
+```
 
 ## Distribution model
 
@@ -176,6 +201,66 @@ arbitrary files; it can only ask the main process to perform named operations.
 
 A single small, non-fullscreen `BrowserWindow` centered on screen
 (`center: true`), non-maximized by default, with a sensible minimum size.
+
+## Repository layout
+
+The top-level `src/{main,preload,renderer,shared}` split mirrors the process
+model above. The layout below is **fixed**: each module named in
+[Module responsibilities](#module-responsibilities-main-process) has a
+predetermined home, so building out later phases is a matter of dropping files
+into place rather than reorganizing.
+
+```
+src/
+├─ main/                     # Node main process — all fs / network / dialog
+│  ├─ index.ts               # app lifecycle + window creation (bootstrap)
+│  ├─ ipc.ts                 # ipcMain.handle registration; emits events
+│  ├─ settingsStore.ts       # load/save + zod-validate settings   (+ .test.ts)
+│  ├─ gameLocation.ts        # validate game folder; resolve package paths (+ .test.ts)
+│  ├─ modStore.ts            # PackageModStore: physical .it disk ops (invariant)
+│  ├─ modResolver.ts         # merge catalog + installed → ModListState
+│  ├─ modInstaller.ts        # orchestrate install / update / delete / disable
+│  ├─ downloader.ts          # stream → temp file → atomic rename + progress
+│  ├─ updater.ts             # electron-updater wrapper (app self-update)
+│  └─ providers/             # the two swappable source seams (the DI boundary)
+│     ├─ catalog.ts          # ModCatalogProvider iface + GitHubReleaseCatalogProvider
+│     └─ installed.ts        # InstalledModsProvider iface + PackageFolderProvider
+├─ preload/
+│  ├─ index.ts               # contextBridge → window.findias
+│  └─ index.d.ts             # ambient types for window.findias
+├─ renderer/                 # Chromium UI (React); NO direct Node access
+│  ├─ index.html             # Vite entry HTML (the renderer's Vite root)
+│  ├─ main.tsx               # React bootstrap (QueryClient, theme)
+│  ├─ env.d.ts               # vite/client types
+│  ├─ App.tsx                # top-level view orchestration
+│  ├─ components/            # UI components
+│  ├─ hooks/                 # (future) TanStack Query hooks over window.findias
+│  └─ theme.ts               # (future) extracted MUI theme
+└─ shared/                   # ONLY code that crosses the IPC boundary
+   ├─ api.ts                 # FindiasApi contract, channel names, IPC DTOs
+   ├─ modList.ts             # (future) ModListState / row view-model DTOs
+   ├─ modFilename.ts         # filename grammar parser (used by both sides) (+ .test.ts)
+   └─ modFilename.test.ts
+```
+
+Conventions that keep the tree stable:
+
+- **`main/` stays flat, with one subfolder: `providers/`.** That is the only
+  place the design anticipates multiple, interchangeable implementations (see
+  [Source abstraction](#source-abstraction-swappable-providers)); a provider
+  interface lives beside its current implementation. Every other main-process
+  concern is a single-purpose module at the top of `main/`.
+- **Tests co-locate** with their subject as `<module>.test.ts`.
+- **`shared/` means "crosses IPC."** It holds the `FindiasApi` contract, channel
+  names, and the serializable DTOs the renderer renders (e.g. `ModListState`).
+  Provider interfaces and non-serializable types like `CatalogEntry` (whose
+  `fetchBytes()` returns a stream) are **main-only** and stay in `main/` — they
+  never reach the renderer, so they don't belong in `shared/`. Promote a type to
+  `shared/` only when it actually needs to cross the boundary.
+- **The renderer is not nested.** `src/renderer/` is itself the renderer's Vite
+  root (it holds `index.html`), and React sources live directly inside it — there
+  is no `src/renderer/src/`. The `@renderer` / `@shared` import aliases map to
+  `src/renderer` and `src/shared`.
 
 ## IPC boundary
 

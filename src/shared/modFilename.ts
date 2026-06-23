@@ -27,7 +27,7 @@ const MANAGED = /^uiscias(?<name>[^_]+)_(?<version>\d{1,5})\.it$/i
  * Findias-managed mod (official game files, third-party mods, stray files),
  * which callers should skip rather than treat as an error.
  */
-export function parseManagedModFileName(fileName: string): ParsedMod | null {
+export const parseManagedModFileName = (fileName: string): ParsedMod | null => {
   const match = MANAGED.exec(fileName)
   if (!match?.groups) return null
   return {
@@ -38,6 +38,6 @@ export function parseManagedModFileName(fileName: string): ParsedMod | null {
 }
 
 /** Build the canonical managed file name for a given mod id + version. */
-export function buildManagedModFileName(modId: string, version: number): string {
+export const buildManagedModFileName = (modId: string, version: number): string => {
   return `uiscias${modId}_${version}.it`
 }

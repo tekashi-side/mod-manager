@@ -26,7 +26,7 @@ Validate the whole toolchain end to end before building features.
 **Done when:** `npm run dev`, `npm run build`, `npm test`, and `npm run typecheck`
 all succeed. ✅
 
-## Phase 1 — Setup gate (choose game folder) 🔜
+## Phase 1 — Setup gate (choose game folder) ✅
 
 The app cannot operate without a valid game folder, so this gates everything.
 
@@ -41,7 +41,7 @@ The app cannot operate without a valid game folder, so this gates everything.
 and subsequent launches skip the prompt. Invalid folders are rejected with a
 clear message. Unit tests cover `GameLocation` validation.
 
-## Phase 2 — Read both sources ⬜
+## Phase 2 — Read both sources 🔜
 
 Stand up the two swappable providers behind their interfaces.
 
