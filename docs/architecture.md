@@ -222,9 +222,11 @@ src/
 │  ├─ modInstaller.ts        # orchestrate install / update / delete / disable
 │  ├─ downloader.ts          # stream → temp file → atomic rename + progress
 │  ├─ updater.ts             # electron-updater wrapper (app self-update)
-│  └─ providers/             # the two swappable source seams (the DI boundary)
-│     ├─ catalog.ts          # ModCatalogProvider iface + GitHubReleaseCatalogProvider
-│     └─ installed.ts        # InstalledModsProvider iface + PackageFolderProvider
+│  └─ providers/             # swappable source seams (the DI boundary)
+│     ├─ catalog.ts              # ModCatalogProvider contract + CatalogEntry + CatalogError
+│     ├─ githubReleaseCatalog.ts # createGitHubReleaseCatalogProvider (current impl)
+│     ├─ installed.ts            # InstalledModsProvider contract + InstalledMod
+│     └─ packageFolder.ts        # createPackageFolderProvider (current impl)
 ├─ preload/
 │  ├─ index.ts               # contextBridge → window.findias
 │  └─ index.d.ts             # ambient types for window.findias
@@ -247,9 +249,15 @@ Conventions that keep the tree stable:
 
 - **`main/` stays flat, with one subfolder: `providers/`.** That is the only
   place the design anticipates multiple, interchangeable implementations (see
-  [Source abstraction](#source-abstraction-swappable-providers)); a provider
-  interface lives beside its current implementation. Every other main-process
-  concern is a single-purpose module at the top of `main/`.
+  [Source abstraction](#source-abstraction-swappable-providers)). Every other
+  main-process concern is a single-purpose module at the top of `main/`.
+- **Inside `providers/`, the contract and each implementation are separate
+  files.** The interface + its normalized types live in a `<domain>.ts`
+  (`catalog.ts`, `installed.ts`); each concrete source is its own
+  `<strategy>.ts` (`githubReleaseCatalog.ts`, `packageFolder.ts`) that imports
+  and implements the contract. **Adding a source is purely additive** — drop in
+  e.g. `manifestCatalog.ts` implementing `ModCatalogProvider` and switch which
+  factory the startup wiring calls; no contract or consumer changes.
 - **Tests co-locate** with their subject as `<module>.test.ts`.
 - **`shared/` means "crosses IPC."** It holds the `FindiasApi` contract, channel
   names, and the serializable DTOs the renderer renders (e.g. `ModListState`).
@@ -379,6 +387,15 @@ deleted, and moved there. We therefore separate two concerns:
 Swapping a source = constructing a different provider at startup and passing it
 in (dependency injection). The detail of *which* provider is in use is confined
 to that one module.
+
+**File organization.** Each interface and its implementations are scoped to
+separate files under `src/main/providers/`: the contract (interface + normalized
+types) lives in `catalog.ts` / `installed.ts`, and every concrete source is its
+own sibling file — `githubReleaseCatalog.ts`, `packageFolder.ts` today, and e.g.
+`manifestCatalog.ts` or `localManifest.ts` later. Adding a source is therefore
+**additive** (a new file implementing the existing contract); switching sources
+is a one-line change at the startup wiring. See
+[Repository layout](#repository-layout).
 
 ## External integration: GitHub (current `ModCatalogProvider`)
 

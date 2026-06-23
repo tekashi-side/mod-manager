@@ -41,22 +41,30 @@ The app cannot operate without a valid game folder, so this gates everything.
 and subsequent launches skip the prompt. Invalid folders are rejected with a
 clear message. Unit tests cover `GameLocation` validation.
 
-## Phase 2 — Read both sources 🔜
+## Phase 2 — Read both sources ✅
 
 Stand up the two swappable providers behind their interfaces.
 
-- `InstalledModsProvider` → `PackageFolderProvider`: scan `package` +
-  `package/disabled`, parse via the shared grammar, return `InstalledMod[]`.
-- `ModCatalogProvider` → `GitHubReleaseCatalogProvider`: `GET /releases`, pick
-  newest non-draft, parse `.it` assets into `CatalogEntry[]`; read rate-limit
-  headers; handle offline/403 gracefully.
+- `InstalledModsProvider` (contract: `src/main/providers/installed.ts`) →
+  `PackageFolderProvider` (`src/main/providers/packageFolder.ts`): scans
+  `package` + `package/disabled`, parses via the shared grammar, returns
+  `InstalledMod[]`; ignores official/third-party/stray files. ✅
+- `ModCatalogProvider` (contract: `src/main/providers/catalog.ts`) →
+  `GitHubReleaseCatalogProvider` (`src/main/providers/githubReleaseCatalog.ts`):
+  `GET /releases`, picks newest non-draft, zod-validates the payload, parses `.it`
+  assets into `CatalogEntry[]`; maps offline/403/HTTP/parse failures to a typed
+  `CatalogError`. ✅
 - Both depend only on normalized types so they can later be swapped for
-  manifest/source-tree or `installedMods.json` strategies.
+  manifest/source-tree or `installedMods.json` strategies. ✅
 
 **Done when:** on launch the app fetches the catalog and scans the folder, with
-unit tests for both providers (mock fetch + a temp fixture folder).
+unit tests for both providers (mock fetch + a temp fixture folder). ✅
 
-## Phase 3 — Resolve & render the mod list ⬜
+> A temporary dev-only launch probe in `src/main/index.ts` (`logSourceScan`)
+> exercises both providers on startup; Phase 3 replaces it with the resolver +
+> `refresh` IPC that feeds the renderer.
+
+## Phase 3 — Resolve & render the mod list 🔜
 
 - `ModResolver`: merge catalog + installed by `modId` into `ModListState` with
   status (not installed / up to date / update available / disabled / orphan) and
