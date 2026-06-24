@@ -96,7 +96,7 @@ const buildRow = (
       releaseVersion: release.version,
       installedVersion,
       size,
-      actions: ['update', 'delete']
+      actions: ['update', 'disable', 'delete']
     }
   }
   return {
@@ -106,7 +106,7 @@ const buildRow = (
     releaseVersion: release.version,
     installedVersion,
     size,
-    actions: ['delete']
+    actions: ['disable', 'delete']
   }
 }
 

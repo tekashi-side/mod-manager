@@ -36,12 +36,16 @@ describe('resolveModList', () => {
 
   it('marks a matching enabled mod as up-to-date', () => {
     const [row] = resolveModList([entry('Foo', 3)], [installed('Foo', 3, true)])
-    expect(row).toMatchObject({ status: 'up-to-date', actions: ['delete'] })
+    expect(row).toMatchObject({ status: 'up-to-date', actions: ['disable', 'delete'] })
   })
 
   it('treats an installed version newer than the release as up-to-date', () => {
     const [row] = resolveModList([entry('Foo', 2)], [installed('Foo', 3, true)])
-    expect(row).toMatchObject({ status: 'up-to-date', installedVersion: 3, actions: ['delete'] })
+    expect(row).toMatchObject({
+      status: 'up-to-date',
+      installedVersion: 3,
+      actions: ['disable', 'delete']
+    })
   })
 
   it('flags an older enabled mod as update-available', () => {
@@ -50,7 +54,7 @@ describe('resolveModList', () => {
       status: 'update-available',
       releaseVersion: 5,
       installedVersion: 3,
-      actions: ['update', 'delete']
+      actions: ['update', 'disable', 'delete']
     })
   })
 
@@ -92,7 +96,7 @@ describe('resolveModList', () => {
     expect(rows[0]).toMatchObject({
       status: 'update-available',
       installedVersion: 4,
-      actions: ['update', 'delete']
+      actions: ['update', 'disable', 'delete']
     })
   })
 

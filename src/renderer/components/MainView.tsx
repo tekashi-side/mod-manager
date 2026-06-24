@@ -54,8 +54,16 @@ const MainView: FC<MainViewProps> = ({ setup }) => {
     onSuccess: seedModList
   })
 
+  const toggle = useMutation({
+    mutationFn: ({ modId, disabled }: { modId: string; disabled: boolean }) =>
+      window.findias.setDisabled(modId, disabled),
+    onSuccess: seedModList
+  })
+
   const handleAction = (action: ModAction, modId: string): void => {
     if (action === 'delete') remove.mutate(modId)
+    else if (action === 'enable') toggle.mutate({ modId, disabled: false })
+    else if (action === 'disable') toggle.mutate({ modId, disabled: true })
     else install.mutate(modId)
   }
 
@@ -63,9 +71,11 @@ const MainView: FC<MainViewProps> = ({ setup }) => {
     ? install.variables
     : remove.isPending
       ? remove.variables
-      : undefined
+      : toggle.isPending
+        ? toggle.variables.modId
+        : undefined
 
-  const mutationError = install.error ?? remove.error
+  const mutationError = install.error ?? remove.error ?? toggle.error
   const rows = data?.rows ?? []
 
   return (

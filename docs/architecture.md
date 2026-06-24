@@ -564,10 +564,14 @@ For each `modId` present in the release and/or on disk, compute status:
 | Release has it | Installed (enabled) | Installed (disabled) | Status |
 | --- | --- | --- | --- |
 | ✓ | — | — | **Not installed** → show _Install_ |
-| ✓ | = release version | — | **Up to date** → show _Delete_ |
-| ✓ | < release version | — | **Update available** → show _Update_ + _Delete_ |
+| ✓ | = release version | — | **Up to date** → show _Disable_ + _Delete_ |
+| ✓ | < release version | — | **Update available** → show _Update_ + _Disable_ + _Delete_ |
 | ✓ | — | any | **Disabled** → show _Enable_ (+ _Update_ if stale) + _Delete_ |
 | — | any | any | **Orphan** (installed, not in current release) → show _Delete_ only |
+
+> An installed version **newer** than the release is treated as up-to-date.
+> Orphans are delete-only: a mod no longer offered by the release is not
+> something you would enable/disable, only remove.
 
 The resulting `ModListState` is an array of view models containing: display
 name, release version, installed version (or null), status, size, and the set of

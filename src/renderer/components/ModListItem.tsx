@@ -24,9 +24,6 @@ const ACTION_LABEL: Record<ModAction, string> = {
   delete: 'Delete'
 }
 
-// install/update/delete are wired in Phase 4; enable/disable arrive in Phase 5.
-const WIRED_ACTIONS: ReadonlySet<ModAction> = new Set(['install', 'update', 'delete'])
-
 const actionStyle = (action: ModAction): Pick<ButtonProps, 'variant' | 'color'> => {
   if (action === 'delete') return { variant: 'outlined', color: 'error' }
   if (action === 'install' || action === 'update' || action === 'enable') {
@@ -62,20 +59,17 @@ const ModListItem: FC<ModListItemProps> = ({ row, busy, progress, onAction }) =>
       </Stack>
 
       <Stack direction="row" spacing={1}>
-        {row.actions.map((action) => {
-          const wired = WIRED_ACTIONS.has(action)
-          return (
-            <Button
-              key={action}
-              size="small"
-              disabled={busy || !wired}
-              onClick={wired ? () => onAction(action, row.modId) : undefined}
-              {...actionStyle(action)}
-            >
-              {ACTION_LABEL[action]}
-            </Button>
-          )
-        })}
+        {row.actions.map((action) => (
+          <Button
+            key={action}
+            size="small"
+            disabled={busy}
+            onClick={() => onAction(action, row.modId)}
+            {...actionStyle(action)}
+          >
+            {ACTION_LABEL[action]}
+          </Button>
+        ))}
       </Stack>
 
       {busy && (

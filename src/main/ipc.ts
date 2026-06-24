@@ -98,6 +98,13 @@ const deleteMod = async (modId: string): Promise<ModListState> => {
   return resolveCurrentState(paths)
 }
 
+/** Move a mod in/out of `package/disabled`, then return the fresh mod list. */
+const setDisabled = async (modId: string, disabled: boolean): Promise<ModListState> => {
+  const paths = await requireGamePaths()
+  await createPackageModStore(paths).setDisabled(modId, disabled)
+  return resolveCurrentState(paths)
+}
+
 export const registerIpcHandlers = (): void => {
   ipcMain.handle(
     IpcChannels.getAppInfo,
@@ -118,6 +125,10 @@ export const registerIpcHandlers = (): void => {
   )
 
   ipcMain.handle(IpcChannels.deleteMod, (_event, modId: string) => deleteMod(modId))
+
+  ipcMain.handle(IpcChannels.setDisabled, (_event, modId: string, disabled: boolean) =>
+    setDisabled(modId, disabled)
+  )
 
   ipcMain.handle(IpcChannels.chooseGameFolder, async (event): Promise<ChooseFolderResult> => {
     const owner = BrowserWindow.fromWebContents(event.sender)

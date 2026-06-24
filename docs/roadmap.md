@@ -106,14 +106,16 @@ end to end, with progress shown and no half-written files on failure. ✅
 
 > Enable/disable buttons remain disabled until Phase 5.
 
-## Phase 5 — Disable / enable ⬜
+## Phase 5 — Disable / enable ✅
 
-- Move files between `package` and the lazily-created, never-deleted
-  `package/disabled` folder.
-- IPC `setDisabled`; UI enable/disable controls; resolver reflects disabled state.
+- `ModStore.setDisabled` (`src/main/modStore.ts`): moves a mod's file(s) between
+  `package` and the lazily-created, never-deleted `package/disabled` folder. ✅
+- IPC `setDisabled` returns fresh `ModListState`; the resolver already reflects
+  disabled state and now also offers a _Disable_ action on enabled in-release
+  rows. UI enable/disable controls are wired via a toggle mutation. ✅
 
 **Done when:** mods can be toggled disabled/enabled without deletion, and the
-game-relevant root of `package` reflects the change.
+game-relevant root of `package` reflects the change. ✅
 
 ## Phase 6 — App self-update & release pipeline ⬜
 
