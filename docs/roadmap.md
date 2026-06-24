@@ -61,7 +61,8 @@ Stand up the two swappable providers behind their interfaces.
 unit tests for both providers (mock fetch + a temp fixture folder). ✅
 
 > The temporary launch probe was removed in Phase 3 and replaced by the resolver
-> + `refresh` IPC that feeds the renderer.
+>
+> - `refresh` IPC that feeds the renderer.
 
 ## Phase 3 — Resolve & render the mod list ✅
 
@@ -92,7 +93,7 @@ The core mutations, all written to operate via the providers + `ModStore`.
   temp file with cumulative progress, atomically renames into place, and removes
   the temp file on failure/cancel. ✅
 - `ModStore` (`src/main/modStore.ts`): `PackageModStore.removeManaged(modId,
-  except?)` deletes managed files from the package root + disabled, optionally
+except?)` deletes managed files from the package root + disabled, optionally
   keeping one (replace). ✅
 - `ModInstaller` (`src/main/modInstaller.ts`): **install/update** with
   write-new-then-delete-old replace semantics; **delete** is `removeManaged`. ✅

@@ -12,10 +12,10 @@ The app name comes from `package.json`'s `"name"` field during development, and
 from `electron-builder.yml`'s `productName` in a packaged build — so the folder
 differs between the two:
 
-| Context | Command / build | Folder |
-| --- | --- | --- |
-| Development | `npm run dev` | `%APPDATA%\findias\` (lowercase, from `package.json` `name`) |
-| Packaged app | installed build | `%APPDATA%\Findias\` (capital F, from `productName`) |
+| Context      | Command / build | Folder                                                       |
+| ------------ | --------------- | ------------------------------------------------------------ |
+| Development  | `npm run dev`   | `%APPDATA%\findias\` (lowercase, from `package.json` `name`) |
+| Packaged app | installed build | `%APPDATA%\Findias\` (capital F, from `productName`)         |
 
 Example (development, on this machine):
 
@@ -50,7 +50,7 @@ The write logic is in [`src/main/settingsStore.ts`](../src/main/settingsStore.ts
 
 ```ts
 function settingsPath(): string {
-  return join(app.getPath('userData'), SETTINGS_FILE)
+  return join(app.getPath('userData'), SETTINGS_FILE);
 }
 ```
 

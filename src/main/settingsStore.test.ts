@@ -1,82 +1,82 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { promises as fs } from 'node:fs'
-import { join } from 'node:path'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { promises as fs } from 'node:fs';
+import { join } from 'node:path';
 
 // Hoisted so the value exists when the electron mock factory runs (which is
 // before the normal import bindings are initialized). Avoid importing helpers
 // here for the same reason; rely on the always-available `process` global.
 const { userDataDir } = vi.hoisted(() => ({
-  userDataDir: `${process.env.TEMP ?? process.env.TMPDIR ?? '/tmp'}/findias-settingsstore-test`
-}))
+  userDataDir: `${process.env.TEMP ?? process.env.TMPDIR ?? '/tmp'}/findias-settingsstore-test`,
+}));
 
 // settingsStore reads `app.getPath('userData')`; point it at a temp dir so the
 // load/save round-trip can be exercised without a running Electron runtime.
 vi.mock('electron', () => ({
-  app: { getPath: () => userDataDir }
-}))
+  app: { getPath: () => userDataDir },
+}));
 
-import { DEFAULT_SETTINGS, loadSettings, parseSettings, saveSettings } from './settingsStore'
+import { DEFAULT_SETTINGS, loadSettings, parseSettings, saveSettings } from './settingsStore';
 
-const settingsFile = join(userDataDir, 'findias-settings.json')
+const settingsFile = join(userDataDir, 'findias-settings.json');
 
 describe('parseSettings', () => {
   it('accepts a valid string path', () => {
     expect(parseSettings({ gameRootPath: 'D:/Nexon/mabinogi/appdata' })).toEqual({
-      gameRootPath: 'D:/Nexon/mabinogi/appdata'
-    })
-  })
+      gameRootPath: 'D:/Nexon/mabinogi/appdata',
+    });
+  });
 
   it('accepts an explicit null path', () => {
-    expect(parseSettings({ gameRootPath: null })).toEqual({ gameRootPath: null })
-  })
+    expect(parseSettings({ gameRootPath: null })).toEqual({ gameRootPath: null });
+  });
 
   it('resets a wrong-typed field to the default', () => {
-    expect(parseSettings({ gameRootPath: 42 })).toEqual(DEFAULT_SETTINGS)
-    expect(parseSettings({ gameRootPath: ['a', 'b'] })).toEqual(DEFAULT_SETTINGS)
-  })
+    expect(parseSettings({ gameRootPath: 42 })).toEqual(DEFAULT_SETTINGS);
+    expect(parseSettings({ gameRootPath: ['a', 'b'] })).toEqual(DEFAULT_SETTINGS);
+  });
 
   it('fills a missing field with the default', () => {
-    expect(parseSettings({})).toEqual(DEFAULT_SETTINGS)
-  })
+    expect(parseSettings({})).toEqual(DEFAULT_SETTINGS);
+  });
 
   it('strips unknown extra keys', () => {
-    expect(parseSettings({ gameRootPath: null, bogus: true })).toEqual({ gameRootPath: null })
-  })
+    expect(parseSettings({ gameRootPath: null, bogus: true })).toEqual({ gameRootPath: null });
+  });
 
   it('falls back to defaults for non-object input', () => {
-    expect(parseSettings('nope')).toEqual(DEFAULT_SETTINGS)
-    expect(parseSettings(null)).toEqual(DEFAULT_SETTINGS)
-    expect(parseSettings(42)).toEqual(DEFAULT_SETTINGS)
-    expect(parseSettings([])).toEqual(DEFAULT_SETTINGS)
-  })
-})
+    expect(parseSettings('nope')).toEqual(DEFAULT_SETTINGS);
+    expect(parseSettings(null)).toEqual(DEFAULT_SETTINGS);
+    expect(parseSettings(42)).toEqual(DEFAULT_SETTINGS);
+    expect(parseSettings([])).toEqual(DEFAULT_SETTINGS);
+  });
+});
 
 describe('loadSettings / saveSettings', () => {
   beforeEach(async () => {
-    await fs.mkdir(userDataDir, { recursive: true })
-    await fs.rm(settingsFile, { force: true })
-  })
+    await fs.mkdir(userDataDir, { recursive: true });
+    await fs.rm(settingsFile, { force: true });
+  });
 
   afterEach(async () => {
-    await fs.rm(userDataDir, { recursive: true, force: true })
-  })
+    await fs.rm(userDataDir, { recursive: true, force: true });
+  });
 
   it('returns defaults when no settings file exists', async () => {
-    expect(await loadSettings()).toEqual(DEFAULT_SETTINGS)
-  })
+    expect(await loadSettings()).toEqual(DEFAULT_SETTINGS);
+  });
 
   it('round-trips saved settings', async () => {
-    await saveSettings({ gameRootPath: 'D:/Nexon/mabinogi/appdata' })
-    expect(await loadSettings()).toEqual({ gameRootPath: 'D:/Nexon/mabinogi/appdata' })
-  })
+    await saveSettings({ gameRootPath: 'D:/Nexon/mabinogi/appdata' });
+    expect(await loadSettings()).toEqual({ gameRootPath: 'D:/Nexon/mabinogi/appdata' });
+  });
 
   it('returns defaults when the file is corrupt JSON', async () => {
-    await fs.writeFile(settingsFile, '{ not valid json', 'utf-8')
-    expect(await loadSettings()).toEqual(DEFAULT_SETTINGS)
-  })
+    await fs.writeFile(settingsFile, '{ not valid json', 'utf-8');
+    expect(await loadSettings()).toEqual(DEFAULT_SETTINGS);
+  });
 
   it('sanitizes a wrong-typed field read from disk', async () => {
-    await fs.writeFile(settingsFile, JSON.stringify({ gameRootPath: 42 }), 'utf-8')
-    expect(await loadSettings()).toEqual(DEFAULT_SETTINGS)
-  })
-})
+    await fs.writeFile(settingsFile, JSON.stringify({ gameRootPath: 42 }), 'utf-8');
+    expect(await loadSettings()).toEqual(DEFAULT_SETTINGS);
+  });
+});

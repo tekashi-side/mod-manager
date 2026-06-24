@@ -11,34 +11,34 @@ export type ModStatus =
   | 'up-to-date' // installed (enabled) at >= the release version
   | 'update-available' // installed (enabled) at an older version than the release
   | 'disabled' // present only in package/disabled
-  | 'orphan' // installed but absent from the current release
+  | 'orphan'; // installed but absent from the current release
 
 /** An action the user may take on a row. Mutations are wired in later phases. */
-export type ModAction = 'install' | 'update' | 'enable' | 'disable' | 'delete'
+export type ModAction = 'install' | 'update' | 'enable' | 'disable' | 'delete';
 
 /** A single rendered row in the mod list. */
 export interface ModRow {
   /** Stable identity (the `<ModFileName>` segment). */
-  modId: string
+  modId: string;
   /** Display name; currently the same as `modId`. */
-  name: string
-  status: ModStatus
+  name: string;
+  status: ModStatus;
   /** Version offered by the latest release, or null if absent from it (orphan). */
-  releaseVersion: number | null
+  releaseVersion: number | null;
   /** Version currently on disk, or null if not installed. */
-  installedVersion: number | null
+  installedVersion: number | null;
   /** Release asset size in bytes, when known. */
-  size: number | null
+  size: number | null;
   /** Valid actions for this row, in display order. */
-  actions: ModAction[]
+  actions: ModAction[];
 }
 
 /** Status of the remote catalog fetch for the current refresh. */
 export interface CatalogStatus {
   /** False when the catalog could not be loaded (offline, rate-limited, etc.). */
-  available: boolean
+  available: boolean;
   /** User-facing explanation when `available` is false. */
-  error?: string
+  error?: string;
 }
 
 /**
@@ -47,6 +47,6 @@ export interface CatalogStatus {
  * installed on disk (all as orphans) so the user can manage existing mods.
  */
 export interface ModListState {
-  rows: ModRow[]
-  catalog: CatalogStatus
+  rows: ModRow[];
+  catalog: CatalogStatus;
 }

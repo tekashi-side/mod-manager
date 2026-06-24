@@ -1,6 +1,6 @@
-import type { ModRow } from '../shared/modList'
-import type { CatalogEntry } from './providers/catalog'
-import type { InstalledMod } from './providers/installed'
+import type { ModRow } from '../shared/modList';
+import type { CatalogEntry } from './providers/catalog';
+import type { InstalledMod } from './providers/installed';
 
 /**
  * The resolver merges the two normalized sources — it depends only on their
@@ -10,9 +10,9 @@ import type { InstalledMod } from './providers/installed'
 
 interface InstalledGroup {
   /** Highest-version enabled file for a modId (in package root), if any. */
-  enabled?: InstalledMod
+  enabled?: InstalledMod;
   /** Highest-version disabled file for a modId (in package/disabled), if any. */
-  disabled?: InstalledMod
+  disabled?: InstalledMod;
 }
 
 /**
@@ -22,29 +22,29 @@ interface InstalledGroup {
  * reconciles the rest.
  */
 const groupInstalledByModId = (installed: InstalledMod[]): Map<string, InstalledGroup> => {
-  const groups = new Map<string, InstalledGroup>()
+  const groups = new Map<string, InstalledGroup>();
   for (const mod of installed) {
-    const group = groups.get(mod.modId) ?? {}
+    const group = groups.get(mod.modId) ?? {};
     if (mod.enabled) {
-      if (!group.enabled || mod.version > group.enabled.version) group.enabled = mod
+      if (!group.enabled || mod.version > group.enabled.version) group.enabled = mod;
     } else if (!group.disabled || mod.version > group.disabled.version) {
-      group.disabled = mod
+      group.disabled = mod;
     }
-    groups.set(mod.modId, group)
+    groups.set(mod.modId, group);
   }
-  return groups
-}
+  return groups;
+};
 
 /** Compute the row (status + valid actions) for a single modId. */
 const buildRow = (
   modId: string,
   release: CatalogEntry | undefined,
-  group: InstalledGroup | undefined
+  group: InstalledGroup | undefined,
 ): ModRow => {
-  const enabled = group?.enabled
-  const disabled = group?.disabled
-  const primary = enabled ?? disabled
-  const size = release?.size ?? null
+  const enabled = group?.enabled;
+  const disabled = group?.disabled;
+  const primary = enabled ?? disabled;
+  const size = release?.size ?? null;
 
   // Installed (or partially so) but absent from the current release.
   if (!release) {
@@ -55,8 +55,8 @@ const buildRow = (
       releaseVersion: null,
       installedVersion: primary?.version ?? null,
       size: null,
-      actions: ['delete']
-    }
+      actions: ['delete'],
+    };
   }
 
   // In the release but nothing on disk.
@@ -68,13 +68,13 @@ const buildRow = (
       releaseVersion: release.version,
       installedVersion: null,
       size,
-      actions: ['install']
-    }
+      actions: ['install'],
+    };
   }
 
   // In the release and present only in package/disabled.
   if (!enabled && disabled) {
-    const stale = disabled.version < release.version
+    const stale = disabled.version < release.version;
     return {
       modId,
       name: modId,
@@ -82,12 +82,12 @@ const buildRow = (
       releaseVersion: release.version,
       installedVersion: disabled.version,
       size,
-      actions: stale ? ['enable', 'update', 'delete'] : ['enable', 'delete']
-    }
+      actions: stale ? ['enable', 'update', 'delete'] : ['enable', 'delete'],
+    };
   }
 
   // In the release and enabled on disk.
-  const installedVersion = primary.version
+  const installedVersion = primary.version;
   if (installedVersion < release.version) {
     return {
       modId,
@@ -96,8 +96,8 @@ const buildRow = (
       releaseVersion: release.version,
       installedVersion,
       size,
-      actions: ['update', 'disable', 'delete']
-    }
+      actions: ['update', 'disable', 'delete'],
+    };
   }
   return {
     modId,
@@ -106,9 +106,9 @@ const buildRow = (
     releaseVersion: release.version,
     installedVersion,
     size,
-    actions: ['disable', 'delete']
-  }
-}
+    actions: ['disable', 'delete'],
+  };
+};
 
 /**
  * Merge the release catalog and the installed-mods scan into the rows the UI
@@ -116,13 +116,13 @@ const buildRow = (
  * inputs always produce the same output.
  */
 export const resolveModList = (catalog: CatalogEntry[], installed: InstalledMod[]): ModRow[] => {
-  const catalogById = new Map(catalog.map((entry) => [entry.modId, entry]))
-  const installedById = groupInstalledByModId(installed)
+  const catalogById = new Map(catalog.map((entry) => [entry.modId, entry]));
+  const installedById = groupInstalledByModId(installed);
 
-  const modIds = new Set<string>([...catalogById.keys(), ...installedById.keys()])
-  const rows: ModRow[] = []
+  const modIds = new Set<string>([...catalogById.keys(), ...installedById.keys()]);
+  const rows: ModRow[] = [];
   for (const modId of modIds) {
-    rows.push(buildRow(modId, catalogById.get(modId), installedById.get(modId)))
+    rows.push(buildRow(modId, catalogById.get(modId), installedById.get(modId)));
   }
-  return rows.sort((a, b) => a.name.localeCompare(b.name))
-}
+  return rows.sort((a, b) => a.name.localeCompare(b.name));
+};

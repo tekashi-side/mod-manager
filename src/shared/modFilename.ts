@@ -13,14 +13,14 @@
 
 export interface ParsedMod {
   /** Exact file name as seen on disk or as a release asset. */
-  fileName: string
+  fileName: string;
   /** Stable identity = the `<ModFileName>` segment. */
-  modId: string
+  modId: string;
   /** Version = the trailing number, parsed as an integer for comparison. */
-  version: number
+  version: number;
 }
 
-const MANAGED = /^uiscias(?<name>[^_]+)_(?<version>\d{1,5})\.it$/i
+const MANAGED = /^uiscias(?<name>[^_]+)_(?<version>\d{1,5})\.it$/i;
 
 /**
  * Parse a managed mod file name. Returns `null` for anything that is not a
@@ -28,16 +28,16 @@ const MANAGED = /^uiscias(?<name>[^_]+)_(?<version>\d{1,5})\.it$/i
  * which callers should skip rather than treat as an error.
  */
 export const parseManagedModFileName = (fileName: string): ParsedMod | null => {
-  const match = MANAGED.exec(fileName)
-  if (!match?.groups) return null
+  const match = MANAGED.exec(fileName);
+  if (!match?.groups) return null;
   return {
     fileName,
     modId: match.groups.name,
-    version: Number.parseInt(match.groups.version, 10)
-  }
-}
+    version: Number.parseInt(match.groups.version, 10),
+  };
+};
 
 /** Build the canonical managed file name for a given mod id + version. */
 export const buildManagedModFileName = (modId: string, version: number): string => {
-  return `uiscias${modId}_${version}.it`
-}
+  return `uiscias${modId}_${version}.it`;
+};

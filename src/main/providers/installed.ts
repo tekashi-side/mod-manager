@@ -14,13 +14,13 @@
  * so the discovery strategy can be swapped without downstream changes.
  */
 export interface InstalledMod {
-  modId: string
-  version: number
-  fileName: string
+  modId: string;
+  version: number;
+  fileName: string;
   /** false = the file currently lives in `package/disabled`. */
-  enabled: boolean
+  enabled: boolean;
   /** Only populated by sources that record it (e.g. a future installedMods.json). */
-  updatedAt?: string
+  updatedAt?: string;
 }
 
 /**
@@ -29,7 +29,7 @@ export interface InstalledMod {
  * *is* the record, so they are simply not implemented.
  */
 export interface InstalledModsProvider {
-  list(): Promise<InstalledMod[]>
-  onInstalled?(mod: InstalledMod): Promise<void>
-  onRemoved?(modId: string): Promise<void>
+  list(): Promise<InstalledMod[]>;
+  onInstalled?(mod: InstalledMod): Promise<void>;
+  onRemoved?(modId: string): Promise<void>;
 }

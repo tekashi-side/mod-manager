@@ -27,22 +27,22 @@ These constraints drive every decision below:
 
 ## Technology stack
 
-| Concern | Choice | Rationale |
-| --- | --- | --- |
-| Language | **TypeScript** everywhere possible | One typed language across main, preload, and renderer; shared types for the IPC contract and data models prevent drift between processes. |
-| App shell | **Electron** | Bundles Chromium + Node + app into one self-contained executable; gives the renderer DOM/UI and the main process full filesystem + network access. |
-| Bootstrap / build | **Vite** (via `electron-vite`) | Fast dev server + HMR for the renderer and a single, well-supported way to build all three Electron entry points (main, preload, renderer) with TypeScript. See note below. |
-| UI framework | **React** | Component model fits the scrollable mod list and setup/empty/error states; large ecosystem; first-class Vite support. |
-| Component library | **MUI (Material UI)** | Ready-made, accessible components (lists, buttons, dialogs, progress) so we build the UI quickly with a consistent look. |
-| Renderer async state | **TanStack Query (React Query)** | Manages loading/error/stale state, de-dupes requests, and invalidates after mutations. It wraps the IPC calls — it does **not** perform networking itself (see note). |
-| Network | **`fetch`** (in the main process) | Standard WHATWG API built into Node 18+; follows redirects; trivially mockable in Vitest. All network calls live in the main process, never the renderer. |
-| Validation | **zod** | Validates all untrusted JSON at the boundary (settings file, GitHub release/manifest JSON). Schemas are the single source of truth — the TS types are derived via `z.infer`, never declared twice. See note below. |
-| Filesystem | Node `fs` / `fs/promises`, `path` | Built in; all package-folder operations. |
-| Folder picker | Electron `dialog.showOpenDialog` | Built in; native directory chooser. |
-| Settings store | JSON file in `app.getPath('userData')`, validated with zod | Built in; no `electron-store` strictly required. |
-| Tests | **Vitest** | Pairs with Vite (shares config/transform), fast, Jest-compatible API; used for unit tests of parsers, providers, resolver, and flows. |
-| Packaging | **electron-builder** (dev-only dependency) | Produces a Windows installer / portable `.exe` to attach to the Findias Releases page. |
-| App self-update | **electron-updater** (GitHub provider) | Lets a running Findias check the `tekashi-side/Findias` releases feed and prompt the user to update — no manual re-download. See [App self-update](#app-self-update). |
+| Concern              | Choice                                                     | Rationale                                                                                                                                                                                                          |
+| -------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Language             | **TypeScript** everywhere possible                         | One typed language across main, preload, and renderer; shared types for the IPC contract and data models prevent drift between processes.                                                                          |
+| App shell            | **Electron**                                               | Bundles Chromium + Node + app into one self-contained executable; gives the renderer DOM/UI and the main process full filesystem + network access.                                                                 |
+| Bootstrap / build    | **Vite** (via `electron-vite`)                             | Fast dev server + HMR for the renderer and a single, well-supported way to build all three Electron entry points (main, preload, renderer) with TypeScript. See note below.                                        |
+| UI framework         | **React**                                                  | Component model fits the scrollable mod list and setup/empty/error states; large ecosystem; first-class Vite support.                                                                                              |
+| Component library    | **MUI (Material UI)**                                      | Ready-made, accessible components (lists, buttons, dialogs, progress) so we build the UI quickly with a consistent look.                                                                                           |
+| Renderer async state | **TanStack Query (React Query)**                           | Manages loading/error/stale state, de-dupes requests, and invalidates after mutations. It wraps the IPC calls — it does **not** perform networking itself (see note).                                              |
+| Network              | **`fetch`** (in the main process)                          | Standard WHATWG API built into Node 18+; follows redirects; trivially mockable in Vitest. All network calls live in the main process, never the renderer.                                                          |
+| Validation           | **zod**                                                    | Validates all untrusted JSON at the boundary (settings file, GitHub release/manifest JSON). Schemas are the single source of truth — the TS types are derived via `z.infer`, never declared twice. See note below. |
+| Filesystem           | Node `fs` / `fs/promises`, `path`                          | Built in; all package-folder operations.                                                                                                                                                                           |
+| Folder picker        | Electron `dialog.showOpenDialog`                           | Built in; native directory chooser.                                                                                                                                                                                |
+| Settings store       | JSON file in `app.getPath('userData')`, validated with zod | Built in; no `electron-store` strictly required.                                                                                                                                                                   |
+| Tests                | **Vitest**                                                 | Pairs with Vite (shares config/transform), fast, Jest-compatible API; used for unit tests of parsers, providers, resolver, and flows.                                                                              |
+| Packaging            | **electron-builder** (dev-only dependency)                 | Produces a Windows installer / portable `.exe` to attach to the Findias Releases page.                                                                                                                             |
+| App self-update      | **electron-updater** (GitHub provider)                     | Lets a running Findias check the `tekashi-side/Findias` releases feed and prompt the user to update — no manual re-download. See [App self-update](#app-self-update).                                              |
 
 > "No dependencies" applies to the **end user**. The build machine still uses
 > normal npm dev/runtime dependencies (Electron, Vite, React, MUI, TanStack
@@ -107,9 +107,9 @@ Example — the settings schema is the source for both validation and the type:
 
 ```ts
 export const settingsSchema = z.object({
-  gameRootPath: z.string().nullable().catch(null)
-})
-export type Settings = z.infer<typeof settingsSchema>
+  gameRootPath: z.string().nullable().catch(null),
+});
+export type Settings = z.infer<typeof settingsSchema>;
 ```
 
 ## Distribution model
@@ -284,7 +284,7 @@ interface FindiasApi {
   chooseGameFolder(): Promise<{ ok: boolean; path?: string; error?: string }>;
 
   // catalog
-  refresh(): Promise<ModListState>;   // scan disk + fetch release + resolve
+  refresh(): Promise<ModListState>; // scan disk + fetch release + resolve
 
   // mutations
   installOrUpdate(modId: string): Promise<ModListState>;
@@ -308,7 +308,7 @@ Design rules for the boundary:
 ## Source abstraction (swappable providers)
 
 Both "sources of truth" are accessed **only through interfaces**, never directly
-by the rest of the app. This is a deliberate seam: the *current* implementations
+by the rest of the app. This is a deliberate seam: the _current_ implementations
 read GitHub releases (remote) and scan the `package` folder (local), but either
 can be swapped for a different strategy by changing **one module**, with no
 impact on `ModResolver`, `ModInstaller`, the IPC layer, or the UI.
@@ -327,22 +327,22 @@ Anticipated future strategies the design must not preclude:
 ```ts
 // Remote: "what mods exist, their versions, and how to obtain the bytes"
 interface ModCatalogProvider {
-  getCatalog(): Promise<CatalogEntry[]>;          // normalized, source-agnostic
+  getCatalog(): Promise<CatalogEntry[]>; // normalized, source-agnostic
 }
 
 interface CatalogEntry {
-  modId: string;             // <ModFileName>
-  version: number;           // parsed integer
-  fileName: string;          // target file name in package/
+  modId: string; // <ModFileName>
+  version: number; // parsed integer
+  fileName: string; // target file name in package/
   size?: number;
   // The provider returns a way to fetch bytes without leaking source details:
-  fetchBytes(): Promise<ReadableStream>;   // e.g. a release asset URL, or a raw
-                                           // file URL from the source tree
+  fetchBytes(): Promise<ReadableStream>; // e.g. a release asset URL, or a raw
+  // file URL from the source tree
 }
 
 // Local: "what is installed, and how we record changes to that record"
 interface InstalledModsProvider {
-  list(): Promise<InstalledMod[]>;         // normalized installed state
+  list(): Promise<InstalledMod[]>; // normalized installed state
   // Lifecycle hooks so swapping the strategy doesn't change ModInstaller:
   onInstalled?(mod: InstalledMod): Promise<void>;
   onRemoved?(modId: string): Promise<void>;
@@ -352,8 +352,8 @@ interface InstalledMod {
   modId: string;
   version: number;
   fileName: string;
-  enabled: boolean;          // false = in package/disabled
-  updatedAt?: string;        // available only if the source records it
+  enabled: boolean; // false = in package/disabled
+  updatedAt?: string; // available only if the source records it
 }
 ```
 
@@ -368,24 +368,24 @@ deleted, and moved there. We therefore separate two concerns:
 
 - **`ModStore` (physical, invariant):** performs the actual disk operations —
   write a downloaded `.it` into `package`, delete it, move it to/from
-  `package/disabled`. This never changes regardless of how we *track* state.
+  `package/disabled`. This never changes regardless of how we _track_ state.
 - **`InstalledModsProvider` (swappable record):** answers "what is installed"
   and records changes. Today it simply **derives** the answer by scanning the
-  folder (the folder *is* the record), so `onInstalled`/`onRemoved` are no-ops.
+  folder (the folder _is_ the record), so `onInstalled`/`onRemoved` are no-ops.
   A future `installedMods.json` implementation would persist richer metadata in
   those hooks — and because `ModInstaller` only calls the interface, swapping the
   implementation requires no change to the installer or anything downstream.
 
 ### Current implementations
 
-| Interface | Current implementation | Reads/writes | Possible future implementation |
-| --- | --- | --- | --- |
-| `ModCatalogProvider` | `GitHubReleaseCatalogProvider` | `GET /releases` → newest non-draft → assets | `ManifestCatalogProvider` (release `manifest.json`) or `SourceTreeCatalogProvider` (latest `main`) |
-| `InstalledModsProvider` | `PackageFolderProvider` | scans `package` + `package/disabled` | `LocalManifestProvider` (`installedMods.json`) |
-| `ModStore` (invariant) | `PackageModStore` | writes/deletes/moves `.it` in `package` | — (does not change) |
+| Interface               | Current implementation         | Reads/writes                                | Possible future implementation                                                                     |
+| ----------------------- | ------------------------------ | ------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `ModCatalogProvider`    | `GitHubReleaseCatalogProvider` | `GET /releases` → newest non-draft → assets | `ManifestCatalogProvider` (release `manifest.json`) or `SourceTreeCatalogProvider` (latest `main`) |
+| `InstalledModsProvider` | `PackageFolderProvider`        | scans `package` + `package/disabled`        | `LocalManifestProvider` (`installedMods.json`)                                                     |
+| `ModStore` (invariant)  | `PackageModStore`              | writes/deletes/moves `.it` in `package`     | — (does not change)                                                                                |
 
 Swapping a source = constructing a different provider at startup and passing it
-in (dependency injection). The detail of *which* provider is in use is confined
+in (dependency injection). The detail of _which_ provider is in use is confined
 to that one module.
 
 **File organization.** Each interface and its implementations are scoped to
@@ -527,9 +527,9 @@ release client, so on-disk files and release assets are interpreted identically.
 const MANAGED = /^Uiscias(?<name>[^_]+)_(?<version>\d{1,5})\.it$/;
 
 interface ParsedMod {
-  fileName: string;   // exact file name on disk / asset name
-  modId: string;      // <ModFileName>
-  version: number;    // parsed integer
+  fileName: string; // exact file name on disk / asset name
+  modId: string; // <ModFileName>
+  version: number; // parsed integer
 }
 ```
 
@@ -561,13 +561,13 @@ The `ModResolver` merges the release catalog and the disk scan, keyed by
 
 For each `modId` present in the release and/or on disk, compute status:
 
-| Release has it | Installed (enabled) | Installed (disabled) | Status |
-| --- | --- | --- | --- |
-| ✓ | — | — | **Not installed** → show _Install_ |
-| ✓ | = release version | — | **Up to date** → show _Disable_ + _Delete_ |
-| ✓ | < release version | — | **Update available** → show _Update_ + _Disable_ + _Delete_ |
-| ✓ | — | any | **Disabled** → show _Enable_ (+ _Update_ if stale) + _Delete_ |
-| — | any | any | **Orphan** (installed, not in current release) → show _Delete_ only |
+| Release has it | Installed (enabled) | Installed (disabled) | Status                                                              |
+| -------------- | ------------------- | -------------------- | ------------------------------------------------------------------- |
+| ✓              | —                   | —                    | **Not installed** → show _Install_                                  |
+| ✓              | = release version   | —                    | **Up to date** → show _Disable_ + _Delete_                          |
+| ✓              | < release version   | —                    | **Update available** → show _Update_ + _Disable_ + _Delete_         |
+| ✓              | —                   | any                  | **Disabled** → show _Enable_ (+ _Update_ if stale) + _Delete_       |
+| —              | any                 | any                  | **Orphan** (installed, not in current release) → show _Delete_ only |
 
 > An installed version **newer** than the release is treated as up-to-date.
 > Orphans are delete-only: a mod no longer offered by the release is not
@@ -648,15 +648,15 @@ by Findias.
 
 ```ts
 interface Settings {
-  gameRootPath: string | null;   // the appdata folder
+  gameRootPath: string | null; // the appdata folder
   // future: UI prefs, last-used filters, etc.
 }
 
 interface AppState {
-  settings: Settings;            // persisted to userData JSON
-  release: ReleaseSnapshot | null;   // in-memory only, this launch
-  installed: ParsedMod[];            // in-memory only, from disk scan
-  modList: ModListState;             // derived, sent to renderer
+  settings: Settings; // persisted to userData JSON
+  release: ReleaseSnapshot | null; // in-memory only, this launch
+  installed: ParsedMod[]; // in-memory only, from disk scan
+  modList: ModListState; // derived, sent to renderer
   busy: Record<string, ActionStatus>; // per-mod in-flight action + progress
 }
 ```
@@ -683,18 +683,18 @@ interface AppState {
 
 ## Module responsibilities (main process)
 
-| Module | Implements | Responsibility |
-| --- | --- | --- |
-| `SettingsStore` | — | Load/save the JSON settings file in `userData`. |
-| `GameLocation` | — | Validate a chosen folder; resolve `package` and `package/disabled` paths. |
-| `GitHubReleaseCatalogProvider` | `ModCatalogProvider` | Fetch `/releases`, pick newest non-draft, parse assets, read rate-limit headers; return normalized `CatalogEntry[]`. Swappable (manifest/source-tree). |
-| `PackageFolderProvider` | `InstalledModsProvider` | List/parse managed `.it` files (root + `package/disabled`); return `InstalledMod[]`. Swappable (`installedMods.json`). |
-| `ModStore` | — (invariant) | Physical disk ops: write/delete/move `.it` files in `package` and `package/disabled`. |
-| `ModResolver` | — | Merge catalog + installed into `ModListState` with status + actions. Depends only on the normalized interfaces. |
-| `Downloader` | — | Stream a source's bytes to a temp file with progress + atomic rename. |
-| `ModInstaller` | — | Orchestrate install / update(replace) / delete / disable via the providers + `ModStore`. |
-| `Updater` | — | electron-updater wrapper: check the Findias releases feed, surface update events over IPC. |
-| `ipc` | — | Register `ipcMain.handle` endpoints; emit progress + update events; return fresh state. |
+| Module                         | Implements              | Responsibility                                                                                                                                         |
+| ------------------------------ | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `SettingsStore`                | —                       | Load/save the JSON settings file in `userData`.                                                                                                        |
+| `GameLocation`                 | —                       | Validate a chosen folder; resolve `package` and `package/disabled` paths.                                                                              |
+| `GitHubReleaseCatalogProvider` | `ModCatalogProvider`    | Fetch `/releases`, pick newest non-draft, parse assets, read rate-limit headers; return normalized `CatalogEntry[]`. Swappable (manifest/source-tree). |
+| `PackageFolderProvider`        | `InstalledModsProvider` | List/parse managed `.it` files (root + `package/disabled`); return `InstalledMod[]`. Swappable (`installedMods.json`).                                 |
+| `ModStore`                     | — (invariant)           | Physical disk ops: write/delete/move `.it` files in `package` and `package/disabled`.                                                                  |
+| `ModResolver`                  | —                       | Merge catalog + installed into `ModListState` with status + actions. Depends only on the normalized interfaces.                                        |
+| `Downloader`                   | —                       | Stream a source's bytes to a temp file with progress + atomic rename.                                                                                  |
+| `ModInstaller`                 | —                       | Orchestrate install / update(replace) / delete / disable via the providers + `ModStore`.                                                               |
+| `Updater`                      | —                       | electron-updater wrapper: check the Findias releases feed, surface update events over IPC.                                                             |
+| `ipc`                          | —                       | Register `ipcMain.handle` endpoints; emit progress + update events; return fresh state.                                                                |
 
 ## Out of scope (technical)
 

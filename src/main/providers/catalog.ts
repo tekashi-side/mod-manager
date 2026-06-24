@@ -13,31 +13,31 @@
  * depend on this shape, not on the specifics of GitHub (or any future source).
  */
 export interface CatalogEntry {
-  modId: string
-  version: number
-  fileName: string
-  size?: number
+  modId: string;
+  version: number;
+  fileName: string;
+  size?: number;
   /** Opens a byte stream for the mod file, hiding the source URL/transport. */
-  fetchBytes(): Promise<ReadableStream<Uint8Array>>
+  fetchBytes(): Promise<ReadableStream<Uint8Array>>;
 }
 
 /** Source-agnostic remote catalog. */
 export interface ModCatalogProvider {
-  getCatalog(): Promise<CatalogEntry[]>
+  getCatalog(): Promise<CatalogEntry[]>;
 }
 
-export type CatalogErrorCode = 'network' | 'rate-limited' | 'http' | 'parse'
+export type CatalogErrorCode = 'network' | 'rate-limited' | 'http' | 'parse';
 
 /**
  * Typed failure thrown by any catalog implementation, so the UI can show an
  * appropriate, recoverable message regardless of the underlying source.
  */
 export class CatalogError extends Error {
-  readonly code: CatalogErrorCode
+  readonly code: CatalogErrorCode;
 
   constructor(code: CatalogErrorCode, message: string, options?: ErrorOptions) {
-    super(message, options)
-    this.name = 'CatalogError'
-    this.code = code
+    super(message, options);
+    this.name = 'CatalogError';
+    this.code = code;
   }
 }

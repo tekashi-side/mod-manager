@@ -1,16 +1,16 @@
-import { downloadToFile } from './downloader'
-import type { ModStore } from './modStore'
-import type { CatalogEntry } from './providers/catalog'
+import { downloadToFile } from './downloader';
+import type { ModStore } from './modStore';
+import type { CatalogEntry } from './providers/catalog';
 
 export interface InstallParams {
   /** The catalog entry to install (its `fileName` is the canonical target name). */
-  entry: CatalogEntry
+  entry: CatalogEntry;
   /** Physical store used to remove superseded versions after the write. */
-  store: ModStore
+  store: ModStore;
   /** The package root the file is written into. */
-  packageDir: string
+  packageDir: string;
   /** Cumulative bytes-written callback for progress reporting. */
-  onProgress?: (receivedBytes: number) => void
+  onProgress?: (receivedBytes: number) => void;
 }
 
 /**
@@ -26,7 +26,7 @@ export const installOrUpdateMod = async (params: InstallParams): Promise<void> =
     openStream: () => params.entry.fetchBytes(),
     destinationDir: params.packageDir,
     fileName: params.entry.fileName,
-    onProgress: params.onProgress
-  })
-  await params.store.removeManaged(params.entry.modId, params.entry.fileName)
-}
+    onProgress: params.onProgress,
+  });
+  await params.store.removeManaged(params.entry.modId, params.entry.fileName);
+};

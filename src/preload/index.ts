@@ -1,5 +1,5 @@
-import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
-import { IpcChannels, type DownloadProgress, type FindiasApi } from '../shared/api'
+import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
+import { IpcChannels, type DownloadProgress, type FindiasApi } from '../shared/api';
 
 const api: FindiasApi = {
   getAppInfo: () => ipcRenderer.invoke(IpcChannels.getAppInfo),
@@ -11,10 +11,10 @@ const api: FindiasApi = {
   setDisabled: (modId, disabled) => ipcRenderer.invoke(IpcChannels.setDisabled, modId, disabled),
   onDownloadProgress: (callback) => {
     const listener = (_event: IpcRendererEvent, progress: DownloadProgress): void =>
-      callback(progress)
-    ipcRenderer.on(IpcChannels.downloadProgress, listener)
-    return () => ipcRenderer.removeListener(IpcChannels.downloadProgress, listener)
-  }
-}
+      callback(progress);
+    ipcRenderer.on(IpcChannels.downloadProgress, listener);
+    return () => ipcRenderer.removeListener(IpcChannels.downloadProgress, listener);
+  },
+};
 
-contextBridge.exposeInMainWorld('findias', api)
+contextBridge.exposeInMainWorld('findias', api);

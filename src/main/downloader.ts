@@ -1,15 +1,15 @@
-import { promises as fs } from 'node:fs'
-import { join } from 'node:path'
+import { promises as fs } from 'node:fs';
+import { join } from 'node:path';
 
 export interface DownloadOptions {
   /** Opens the byte stream to read from (e.g. a CatalogEntry's `fetchBytes`). */
-  openStream: () => Promise<ReadableStream<Uint8Array>>
+  openStream: () => Promise<ReadableStream<Uint8Array>>;
   /** Directory the final file is written into (same dir as the temp file). */
-  destinationDir: string
+  destinationDir: string;
   /** Final file name within `destinationDir`. */
-  fileName: string
+  fileName: string;
   /** Called with cumulative bytes written after each chunk. */
-  onProgress?: (receivedBytes: number) => void
+  onProgress?: (receivedBytes: number) => void;
 }
 
 /**
@@ -22,31 +22,31 @@ export interface DownloadOptions {
  * matches the `uiscias…` grammar — ignores it even if a crash leaves one behind.
  */
 export const downloadToFile = async (options: DownloadOptions): Promise<string> => {
-  const finalPath = join(options.destinationDir, options.fileName)
-  const tempPath = join(options.destinationDir, `.${options.fileName}.part`)
+  const finalPath = join(options.destinationDir, options.fileName);
+  const tempPath = join(options.destinationDir, `.${options.fileName}.part`);
 
-  const stream = await options.openStream()
-  const reader = stream.getReader()
-  const handle = await fs.open(tempPath, 'w')
+  const stream = await options.openStream();
+  const reader = stream.getReader();
+  const handle = await fs.open(tempPath, 'w');
 
-  let received = 0
+  let received = 0;
   try {
     for (;;) {
-      const { done, value } = await reader.read()
-      if (done) break
-      if (!value) continue
-      await handle.write(value)
-      received += value.byteLength
-      options.onProgress?.(received)
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      await handle.write(value);
+      received += value.byteLength;
+      options.onProgress?.(received);
     }
   } catch (error) {
-    await reader.cancel().catch(() => {})
-    await handle.close()
-    await fs.rm(tempPath, { force: true })
-    throw error
+    await reader.cancel().catch(() => {});
+    await handle.close();
+    await fs.rm(tempPath, { force: true });
+    throw error;
   }
 
-  await handle.close()
-  await fs.rename(tempPath, finalPath)
-  return finalPath
-}
+  await handle.close();
+  await fs.rename(tempPath, finalPath);
+  return finalPath;
+};

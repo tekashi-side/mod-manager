@@ -1,9 +1,9 @@
-import { promises as fs } from 'node:fs'
-import { join } from 'node:path'
-import { app } from 'electron'
-import { z } from 'zod'
+import { promises as fs } from 'node:fs';
+import { join } from 'node:path';
+import { app } from 'electron';
+import { z } from 'zod';
 
-const SETTINGS_FILE = 'findias-settings.json'
+const SETTINGS_FILE = 'findias-settings.json';
 
 /**
  * Single source of truth for the persisted settings shape. The schema validates
@@ -15,14 +15,14 @@ const SETTINGS_FILE = 'findias-settings.json'
  */
 export const settingsSchema = z.object({
   /** Absolute path to the Mabinogi `appdata` root folder, or null if unset. */
-  gameRootPath: z.string().nullable().catch(null)
-})
+  gameRootPath: z.string().nullable().catch(null),
+});
 
-export type Settings = z.infer<typeof settingsSchema>
+export type Settings = z.infer<typeof settingsSchema>;
 
 export const DEFAULT_SETTINGS: Settings = {
-  gameRootPath: null
-}
+  gameRootPath: null,
+};
 
 /**
  * Validate unknown input (e.g. parsed JSON) into a guaranteed-valid `Settings`.
@@ -30,11 +30,11 @@ export const DEFAULT_SETTINGS: Settings = {
  * per-field `.catch(...)`; a wholly invalid value (non-object) returns defaults.
  */
 export const parseSettings = (value: unknown): Settings => {
-  const result = settingsSchema.safeParse(value)
-  return result.success ? result.data : { ...DEFAULT_SETTINGS }
-}
+  const result = settingsSchema.safeParse(value);
+  return result.success ? result.data : { ...DEFAULT_SETTINGS };
+};
 
-const settingsPath = (): string => join(app.getPath('userData'), SETTINGS_FILE)
+const settingsPath = (): string => join(app.getPath('userData'), SETTINGS_FILE);
 
 /**
  * Load persisted settings. Returns defaults if the file is missing or corrupt,
@@ -43,14 +43,14 @@ const settingsPath = (): string => join(app.getPath('userData'), SETTINGS_FILE)
  */
 export const loadSettings = async (): Promise<Settings> => {
   try {
-    const raw = await fs.readFile(settingsPath(), 'utf-8')
-    return parseSettings(JSON.parse(raw))
+    const raw = await fs.readFile(settingsPath(), 'utf-8');
+    return parseSettings(JSON.parse(raw));
   } catch {
-    return { ...DEFAULT_SETTINGS }
+    return { ...DEFAULT_SETTINGS };
   }
-}
+};
 
 /** Persist settings as pretty-printed JSON in the userData folder. */
 export const saveSettings = async (settings: Settings): Promise<void> => {
-  await fs.writeFile(settingsPath(), JSON.stringify(settings, null, 2), 'utf-8')
-}
+  await fs.writeFile(settingsPath(), JSON.stringify(settings, null, 2), 'utf-8');
+};

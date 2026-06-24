@@ -1,9 +1,9 @@
-import type { FindiasApi } from '../shared/api'
+import type { FindiasApi } from '../shared/api';
 
 declare global {
   interface Window {
-    findias: FindiasApi
+    findias: FindiasApi;
   }
 }
 
-export {}
+export {};

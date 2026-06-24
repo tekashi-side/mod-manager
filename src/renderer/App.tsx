@@ -1,17 +1,17 @@
-import type { FC } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import Container from '@mui/material/Container'
-import Stack from '@mui/material/Stack'
-import CircularProgress from '@mui/material/CircularProgress'
-import Alert from '@mui/material/Alert'
-import SetupGate from './components/SetupGate'
-import MainView from './components/MainView'
+import type { FC } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import Container from '@mui/material/Container';
+import Stack from '@mui/material/Stack';
+import CircularProgress from '@mui/material/CircularProgress';
+import Alert from '@mui/material/Alert';
+import SetupGate from './components/SetupGate';
+import MainView from './components/MainView';
 
 const App: FC = () => {
   const { data, isLoading, error } = useQuery({
     queryKey: ['setupState'],
-    queryFn: () => window.findias.getSetupState()
-  })
+    queryFn: () => window.findias.getSetupState(),
+  });
 
   if (isLoading) {
     return (
@@ -20,7 +20,7 @@ const App: FC = () => {
           <CircularProgress />
         </Stack>
       </Container>
-    )
+    );
   }
 
   if (error || !data) {
@@ -28,10 +28,10 @@ const App: FC = () => {
       <Container maxWidth="sm" sx={{ py: 4 }}>
         <Alert severity="error">Failed to read application state.</Alert>
       </Container>
-    )
+    );
   }
 
-  return data.valid ? <MainView setup={data} /> : <SetupGate />
-}
+  return data.valid ? <MainView setup={data} /> : <SetupGate />;
+};
 
-export default App
+export default App;
