@@ -16,12 +16,20 @@ const SETTINGS_FILE = 'findias-settings.json';
 export const settingsSchema = z.object({
   /** Absolute path to the Mabinogi `appdata` root folder, or null if unset. */
   gameRootPath: z.string().nullable().catch(null),
+  /**
+   * Whether prerelease GitHub releases are eligible when selecting the newest
+   * Uiscias release. Defaults to true because the manifest currently ships only
+   * on prereleases. The `.catch` keeps older settings files (missing the field)
+   * valid by falling back to the default.
+   */
+  includePrereleases: z.boolean().catch(true),
 });
 
 export type Settings = z.infer<typeof settingsSchema>;
 
 export const DEFAULT_SETTINGS: Settings = {
   gameRootPath: null,
+  includePrereleases: true,
 };
 
 /**

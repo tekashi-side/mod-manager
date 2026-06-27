@@ -19,9 +19,15 @@ The mods themselves are stored and maintained in a GitHub repository called
 - Findias treats this repository as the **source of truth** for which mods exist
   and what the latest versions are.
 - Each GitHub **release** of Uiscias contains the prepacked `.it` files that are
-  ready to drop into the game's `package` folder.
-- Findias checks the **latest release** to determine what mods can currently be
-  installed or updated.
+  ready to drop into the game's `package` folder, **plus a `manifestCatalog.json`
+  asset** that fully describes the catalog (per-mod metadata, variants, the files
+  each mod modifies, tags, and catalog-wide game-version info).
+- Findias reads that **manifest** from the **latest release** to determine what
+  mods can currently be installed or updated — it no longer infers the catalog
+  from release asset names.
+- Because the manifest currently ships only on **prereleases**, Findias exposes a
+  persisted **"Include prereleases"** toggle controlling whether prereleases are
+  eligible when choosing the latest release.
 
 > Note: All client modifications are against Nexon's Terms of Service and are
 > used at the user's own risk. This tooling targets Mabinogi (North America).
@@ -33,11 +39,14 @@ Findias mediates between two sources:
 1. **Local game install** — specifically the `appdata\package` folder, which
    holds the installed mod `.it` files and reflects what is currently installed
    and at what version.
-2. **Remote Uiscias release** — the latest GitHub release, which defines the
-   available mods and their latest versions.
+2. **Remote Uiscias release** — the latest GitHub release's `manifestCatalog.json`,
+   which defines the available mods (grouped, with variants), their latest
+   versions, the files each modifies, and catalog metadata.
 
 By comparing the two, Findias can tell, for each mod, whether it is **not
-installed**, **up to date**, or **out of date** (update available).
+installed**, **up to date**, or **out of date** (update available). The manifest
+also lets Findias group **variants** of a mod and prevent **conflicting**
+installs (see the conventions below).
 
 ## Findias Conventions
 
@@ -89,6 +98,32 @@ In other words, updating a mod is a **replace** operation — exactly one file p
 mod (identified by its `Uiscias<ModFileName>` portion) should ever be in
 `package`.
 
+### Mods with variants
+
+Some mods ship as a set of mutually-exclusive **variants** (for example
+`Bri Hp Bars` with `Bri Hp Bars 1 And 2` and `Bri Hp Bars 1 And 3`). The
+manifest marks these with `hasVariants: true`. Findias renders such a mod as a
+single top-level entry that has **no action buttons** and acts as a dropdown; the
+individual variants inside carry the install/update/enable/delete actions. Only
+**one variant may be installed at a time** (they modify the same files), so
+choosing a different variant **auto-switches**: Findias installs the chosen one
+and removes the previously-installed sibling in a single action.
+
+### Conflicting mods (shared files)
+
+Each mod lists the game files it modifies (`usedFiles` in the manifest). Two
+mods that are **enabled at the same time** while modifying the same file would
+conflict in-game, so Findias prevents it. Because the game only loads files in
+the `package` root, the rule applies to **enabled** mods only:
+
+- An action that would make a mod enabled (Install / Update / Enable) is
+  **disabled** when an already-enabled mod modifies any of the same files, and
+  Findias shows **which mod(s)** are responsible by name.
+- A disabled mod that conflicts with an enabled one is therefore **delete-only**
+  until the conflict is resolved.
+- Two conflicting mods may both be installed (e.g. one enabled, one disabled);
+  they can simply never both be enabled.
+
 ### Temporarily disabling mods
 
 When disabling mods (e.g. after a game patch), Findias will **move** installed
@@ -107,8 +142,11 @@ subfolders — see [`game-structure.md`](./game-structure.md).
    for all mod files that match the Findias naming convention
    (`Uiscias<ModFileName>_<number>.it`). This list acts as the local source of
    truth for which mods are currently installed and at what version.
-4. **Check latest Uiscias release** — read the files in the latest Uiscias
-   GitHub release to know which mods can currently be installed or updated.
+4. **Check latest Uiscias release** — read the `manifestCatalog.json` asset from
+   the latest Uiscias GitHub release to know which mods can currently be installed
+   or updated, including their display names, tags, versions, sizes, variants, and
+   the files each modifies. A persisted "Include prereleases" toggle controls
+   release selection.
 5. **Install / update / delete via GUI** — allow the user to:
    - **Install** a mod by downloading its `.it` file from the latest release.
    - **Update** a mod by downloading the latest file and deleting the old
@@ -122,11 +160,11 @@ subfolders — see [`game-structure.md`](./game-structure.md).
    screenshots, GIFs, and/or videos along with descriptions and details
    explaining exactly what the mod does. (Uiscias stores example media, e.g. in
    its `ExampleImages` folder.)
-2. **Client-version awareness** — detect when the Mabinogi client has been
-   updated, cross-reference the client's version against the version expected by
-   Uiscias, and if they don't match, suggest **temporarily disabling** all
-   installed mods to prevent issues (see
-   [Temporarily disabling mods](#temporarily-disabling-mods)).
+2. **Client-version awareness** — a first cut now ships: the manifest's
+   catalog-wide `supportedGameVersion` vs `currentGameVersion` drives a top-of-app
+   banner suggesting users **temporarily disable** mods (especially `volatile`
+   ones) after a game patch. Detecting the **actual running client version** and a
+   finer-grained **per-mod** verified-version signal remain future work.
 
 ## Out of Scope (for now)
 

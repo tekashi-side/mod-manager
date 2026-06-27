@@ -50,12 +50,11 @@ Stand up the two swappable providers behind their interfaces.
   `package` + `package/disabled`, parses via the shared grammar, returns
   `InstalledMod[]`; ignores official/third-party/stray files. ✅
 - `ModCatalogProvider` (contract: `src/main/providers/catalog.ts`) →
-  `GitHubReleaseCatalogProvider` (`src/main/providers/githubReleaseCatalog.ts`):
-  `GET /releases`, picks newest non-draft, zod-validates the payload, parses `.it`
-  assets into `CatalogEntry[]`; maps offline/403/HTTP/parse failures to a typed
-  `CatalogError`. ✅
+  originally `GitHubReleaseCatalogProvider` (asset-name scraping), **superseded in
+  Phase 7** by `ManifestCatalogProvider` (reads `manifestCatalog.json`). Both map
+  offline/403/HTTP/parse failures to a typed `CatalogError`. ✅
 - Both depend only on normalized types so they can later be swapped for
-  manifest/source-tree or `installedMods.json` strategies. ✅
+  source-tree or `installedMods.json` strategies. ✅
 
 **Done when:** on launch the app fetches the catalog and scans the folder, with
 unit tests for both providers (mock fetch + a temp fixture folder). ✅
@@ -129,6 +128,38 @@ game-relevant root of `package` reflects the change. ✅
 **Done when:** publishing a new GitHub release causes a running app to detect,
 download, and offer to install the update; a Windows installer is produced.
 
+## Phase 7 — manifestCatalog.json integration ✅
+
+Consume Uiscias's `manifestCatalog.json` instead of scraping release asset names.
+This **evolves Phases 2–3** (the catalog provider, the DTOs, and the resolver/UI).
+
+- **Schema (copied, lenient):** `providers/manifestSchema.ts` ports the Uiscias
+  zod schema — `findiasTags` as `string[]`, `updateType` with a `volatile`
+  fallback, passthrough `metadata`, and a `MANIFEST_SCHEMA_VERSION` guard. ✅
+- **Grouped contract:** `catalog.ts` replaces flat `CatalogEntry` with
+  `Catalog { metadata, groups }` / `CatalogGroup` / `CatalogVariant`, mirroring the
+  manifest 1:1. A `githubReleases.ts` helper handles release fetch + newest-eligible
+  selection (incl. the prerelease filter). ✅
+- **Provider:** `ManifestCatalogProvider` downloads + validates the manifest asset
+  and resolves each variant's `.it` URL from the release assets; the old provider
+  is removed. ✅
+- **DTOs + resolver:** `shared/modList.ts` gains `ModGroupRow`/`ModVariantRow`/
+  `conflicts`/`CatalogMetadata`; the resolver builds grouped rows with enabled-only
+  `usedFiles` conflict detection (sibling-aware) and a banner-only freshness flag. ✅
+- **Installer/IPC:** variant auto-switch (`replaceSiblings`) and catalog metadata
+  threaded through IPC. ✅
+- **Renderer:** variant-group dropdown, tags/size/version display, a dedicated
+  `updateType` indicator shown only while the freshness banner is active, conflict
+  messaging, and the catalog-wide freshness banner. ✅
+- **Prerelease toggle:** persisted `includePrereleases` setting + IPC + a UI switch
+  that re-filters release selection (default on, since the manifest currently ships
+  only on prereleases). ✅
+
+**Done when:** the list renders from a live release's `manifestCatalog.json` with
+variants grouped, conflicting installs prevented (naming the blocker), richer
+metadata shown, the freshness banner working, and the prerelease toggle persisted.
+Providers/resolver/installer have unit tests. ✅
+
 ## Cross-cutting (ongoing)
 
 - **Tests:** pure modules (parser, providers, resolver) carry unit tests as they
@@ -139,8 +170,11 @@ download, and offer to install the update; a Windows installer is produced.
 
 ## Stretch (post-MVP)
 
-- Rich mod details (screenshots/GIFs/descriptions from Uiscias media).
-- Client-version awareness → suggest temporarily disabling mods after a patch.
-- Possible source-of-truth swaps (release `manifest.json`, or a local
-  `installedMods.json` with richer metadata) — already accommodated by the
-  provider interfaces.
+- Rich mod details (screenshots/GIFs/descriptions from Uiscias media; the manifest
+  already carries `modAuthor`, `modAdditionalCredits`, and `recentUpdateNotes`).
+- Client-version awareness → **partially shipped** in Phase 7 as the catalog-wide
+  freshness banner; detecting the **actual running client version** (rather than
+  the manifest's `currentGameVersion`) and a per-mod verified-version signal remain.
+- Source-of-truth swaps (a source-tree catalog, or a local `installedMods.json`
+  with richer metadata) — already accommodated by the provider interfaces.
+- A shared `@uiscias/schema` package to replace the copied manifest schema.

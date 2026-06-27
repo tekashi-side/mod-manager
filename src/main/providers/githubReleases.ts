@@ -1,15 +1,28 @@
 import { z } from 'zod';
-import { type ParsedMod, parseManagedModFileName } from '../../shared/modFilename';
-import { CatalogError, type CatalogEntry, type ModCatalogProvider } from './catalog';
+import { CatalogError } from './catalog';
 
 /** Minimal `fetch` shape we depend on; lets tests inject a stub without casts. */
 export type FetchLike = (input: string | URL, init?: RequestInit) => Promise<Response>;
 
-export interface GitHubCatalogOptions {
+export interface GitHubReleasesOptions {
   owner?: string;
   repo?: string;
   baseUrl?: string;
   fetchFn?: FetchLike;
+}
+
+export interface ResolvedReleaseOptions {
+  owner: string;
+  repo: string;
+  baseUrl: string;
+  fetchFn: FetchLike;
+}
+
+/** A release asset we care about (name + download URL + optional size). */
+export interface ReleaseAsset {
+  name: string;
+  size?: number;
+  browser_download_url: string;
 }
 
 const DEFAULT_OWNER = 'Root50199';
@@ -17,8 +30,7 @@ const DEFAULT_REPO = 'Uiscias';
 const DEFAULT_BASE_URL = 'https://api.github.com';
 
 // GitHub release/asset JSON is untrusted input — validate the fields we consume.
-// `assets` is kept as `unknown[]` so a single malformed asset never fails the
-// whole release; each asset is validated individually and skipped if invalid.
+// `assets` stays `unknown[]` so one malformed asset never fails the whole release.
 const assetSchema = z.object({
   name: z.string(),
   size: z.number().optional(),
@@ -33,14 +45,12 @@ const releaseSchema = z.object({
 
 const releasesSchema = z.array(releaseSchema);
 
-type ValidatedAsset = z.infer<typeof assetSchema>;
-
-interface ResolvedOptions {
-  owner: string;
-  repo: string;
-  baseUrl: string;
-  fetchFn: FetchLike;
-}
+export const resolveReleaseOptions = (options: GitHubReleasesOptions): ResolvedReleaseOptions => ({
+  owner: options.owner ?? DEFAULT_OWNER,
+  repo: options.repo ?? DEFAULT_REPO,
+  baseUrl: options.baseUrl ?? DEFAULT_BASE_URL,
+  fetchFn: options.fetchFn ?? fetch,
+});
 
 /** Build a friendly rate-limit message from the `x-ratelimit-reset` header. */
 const rateLimitMessage = (resetHeader: string | null): string => {
@@ -52,26 +62,8 @@ const rateLimitMessage = (resetHeader: string | null): string => {
   return "GitHub's hourly rate limit was reached. Please try again later.";
 };
 
-/** Build a normalized `CatalogEntry` from a validated asset + its parsed name. */
-const makeEntry = (asset: ValidatedAsset, parsed: ParsedMod, fetchFn: FetchLike): CatalogEntry => ({
-  modId: parsed.modId,
-  version: parsed.version,
-  fileName: parsed.fileName,
-  size: asset.size,
-  fetchBytes: async (): Promise<ReadableStream<Uint8Array>> => {
-    const response = await fetchFn(asset.browser_download_url);
-    if (!response.ok || !response.body) {
-      throw new CatalogError(
-        'http',
-        `Failed to download ${parsed.fileName} (HTTP ${response.status}).`,
-      );
-    }
-    return response.body;
-  },
-});
-
 /** Request the repo's releases feed, mapping connection failures to `CatalogError`. */
-const fetchReleases = async (options: ResolvedOptions): Promise<Response> => {
+const fetchReleases = async (options: ResolvedReleaseOptions): Promise<Response> => {
   const url = `${options.baseUrl}/repos/${options.owner}/${options.repo}/releases`;
   try {
     return await options.fetchFn(url, {
@@ -90,10 +82,15 @@ const fetchReleases = async (options: ResolvedOptions): Promise<Response> => {
 };
 
 /**
- * Fetch, validate, and normalize the newest non-draft release into managed
- * `CatalogEntry[]`, throwing a typed `CatalogError` on any failure.
+ * Fetch the releases feed and return the assets of the newest eligible release,
+ * mapping every failure mode to a typed `CatalogError`. Returns `null` when no
+ * release matches (e.g. prereleases excluded and only prereleases exist). We use
+ * the list endpoint (not `/releases/latest`) so prereleases can be included.
  */
-const getCatalog = async (options: ResolvedOptions): Promise<CatalogEntry[]> => {
+export const fetchLatestReleaseAssets = async (
+  options: ResolvedReleaseOptions,
+  includePrereleases: boolean,
+): Promise<ReleaseAsset[] | null> => {
   const response = await fetchReleases(options);
 
   if (response.status === 403 && response.headers.get('x-ratelimit-remaining') === '0') {
@@ -125,37 +122,19 @@ const getCatalog = async (options: ResolvedOptions): Promise<CatalogEntry[]> => 
     });
   }
 
-  // Newest non-draft release. We use the list endpoint (not /releases/latest) on
-  // purpose so prereleases are included; GitHub returns newest-first.
-  const release = parsed.data.find((entry) => entry.draft !== true);
-  if (!release) return [];
+  // GitHub returns newest-first; pick the newest non-draft (and non-prerelease
+  // when prereleases are excluded).
+  const release = parsed.data.find((entry) => {
+    if (entry.draft === true) return false;
+    if (!includePrereleases && entry.prerelease === true) return false;
+    return true;
+  });
+  if (!release) return null;
 
-  const entries: CatalogEntry[] = [];
+  const assets: ReleaseAsset[] = [];
   for (const rawAsset of release.assets ?? []) {
     const asset = assetSchema.safeParse(rawAsset);
-    if (!asset.success) continue;
-    const parsedName = parseManagedModFileName(asset.data.name);
-    if (!parsedName) continue;
-    entries.push(makeEntry(asset.data, parsedName, options.fetchFn));
+    if (asset.success) assets.push(asset.data);
   }
-  return entries;
-};
-
-/**
- * Current `ModCatalogProvider`: reads the Uiscias GitHub Releases feed, selects
- * the newest non-draft release (prereleases included), and returns its managed
- * `.it` assets as normalized `CatalogEntry[]`. Swappable for a manifest or
- * source-tree strategy by adding a sibling file that implements the same
- * interface — no consumer changes.
- */
-export const createGitHubReleaseCatalogProvider = (
-  options: GitHubCatalogOptions = {},
-): ModCatalogProvider => {
-  const resolved: ResolvedOptions = {
-    owner: options.owner ?? DEFAULT_OWNER,
-    repo: options.repo ?? DEFAULT_REPO,
-    baseUrl: options.baseUrl ?? DEFAULT_BASE_URL,
-    fetchFn: options.fetchFn ?? fetch,
-  };
-  return { getCatalog: (): Promise<CatalogEntry[]> => getCatalog(resolved) };
+  return assets;
 };

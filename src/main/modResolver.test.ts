@@ -1,14 +1,47 @@
 import { describe, expect, it } from 'vitest';
-import type { CatalogEntry } from './providers/catalog';
+import type { Catalog, CatalogGroup, CatalogVariant } from './providers/catalog';
 import type { InstalledMod } from './providers/installed';
 import { resolveModList } from './modResolver';
 
-const entry = (modId: string, version: number, size = 10): CatalogEntry => ({
+const variant = (
+  modId: string,
+  version: number,
+  opts: { size?: number; usedFiles?: string[]; updateType?: string; name?: string } = {},
+): CatalogVariant => ({
   modId,
-  version,
+  modName: opts.name ?? modId,
   fileName: `uiscias${modId}_${version}.it`,
-  size,
+  version,
+  size: opts.size ?? 10,
+  updateType: opts.updateType ?? 'stable',
+  usedFiles: opts.usedFiles ?? [],
+  modAuthor: 'Root50199',
+  modAdditionalCredits: 'None',
+  recentUpdateNotes: 'n/a',
   fetchBytes: async (): Promise<ReadableStream<Uint8Array>> => new ReadableStream<Uint8Array>(),
+});
+
+/** A single-variant (non-variant) group built from one variant. */
+const soloGroup = (v: CatalogVariant): CatalogGroup => ({
+  groupId: v.modId,
+  modName: v.modName,
+  findiasTags: [],
+  hasVariants: false,
+  mutuallyExclusive: false,
+  variants: [v],
+});
+
+const catalogOf = (
+  groups: CatalogGroup[],
+  meta: { current?: string; supported?: string } = {},
+): Catalog => ({
+  metadata: {
+    schemaVersion: 1,
+    currentGameVersion: meta.current ?? '1.0.0',
+    supportedGameVersion: meta.supported ?? '1.0.0',
+    generatedAt: '2026-06-27T00:00:00.000Z',
+  },
+  groups,
 });
 
 const installed = (modId: string, version: number, enabled: boolean): InstalledMod => ({
@@ -18,30 +51,44 @@ const installed = (modId: string, version: number, enabled: boolean): InstalledM
   enabled,
 });
 
+/** Shorthand: the first variant of the first group. */
+const firstVariant = (result: ReturnType<typeof resolveModList>) => result.groups[0].variants[0];
+
 describe('resolveModList', () => {
-  it('returns an empty list when both sources are empty', () => {
-    expect(resolveModList([], [])).toEqual([]);
+  it('returns no groups when both sources are empty', () => {
+    expect(resolveModList(catalogOf([]), [])).toMatchObject({
+      groups: [],
+      metadata: { outdated: false },
+    });
   });
 
   it('marks a release-only mod as not-installed', () => {
-    const [row] = resolveModList([entry('Foo', 3)], []);
-    expect(row).toMatchObject({
+    const result = resolveModList(catalogOf([soloGroup(variant('Foo', 3))]), []);
+    expect(firstVariant(result)).toMatchObject({
       modId: 'Foo',
       status: 'not-installed',
       releaseVersion: 3,
       installedVersion: null,
       actions: ['install'],
+      conflicts: [],
     });
   });
 
   it('marks a matching enabled mod as up-to-date', () => {
-    const [row] = resolveModList([entry('Foo', 3)], [installed('Foo', 3, true)]);
-    expect(row).toMatchObject({ status: 'up-to-date', actions: ['disable', 'delete'] });
+    const result = resolveModList(catalogOf([soloGroup(variant('Foo', 3))]), [
+      installed('Foo', 3, true),
+    ]);
+    expect(firstVariant(result)).toMatchObject({
+      status: 'up-to-date',
+      actions: ['disable', 'delete'],
+    });
   });
 
   it('treats an installed version newer than the release as up-to-date', () => {
-    const [row] = resolveModList([entry('Foo', 2)], [installed('Foo', 3, true)]);
-    expect(row).toMatchObject({
+    const result = resolveModList(catalogOf([soloGroup(variant('Foo', 2))]), [
+      installed('Foo', 3, true),
+    ]);
+    expect(firstVariant(result)).toMatchObject({
       status: 'up-to-date',
       installedVersion: 3,
       actions: ['disable', 'delete'],
@@ -49,8 +96,10 @@ describe('resolveModList', () => {
   });
 
   it('flags an older enabled mod as update-available', () => {
-    const [row] = resolveModList([entry('Foo', 5)], [installed('Foo', 3, true)]);
-    expect(row).toMatchObject({
+    const result = resolveModList(catalogOf([soloGroup(variant('Foo', 5))]), [
+      installed('Foo', 3, true),
+    ]);
+    expect(firstVariant(result)).toMatchObject({
       status: 'update-available',
       releaseVersion: 5,
       installedVersion: 3,
@@ -59,8 +108,10 @@ describe('resolveModList', () => {
   });
 
   it('marks a disabled stale mod as disabled with enable + update + delete', () => {
-    const [row] = resolveModList([entry('Foo', 5)], [installed('Foo', 3, false)]);
-    expect(row).toMatchObject({
+    const result = resolveModList(catalogOf([soloGroup(variant('Foo', 5))]), [
+      installed('Foo', 3, false),
+    ]);
+    expect(firstVariant(result)).toMatchObject({
       status: 'disabled',
       installedVersion: 3,
       actions: ['enable', 'update', 'delete'],
@@ -68,13 +119,18 @@ describe('resolveModList', () => {
   });
 
   it('marks a disabled up-to-date mod as disabled with enable + delete only', () => {
-    const [row] = resolveModList([entry('Foo', 3)], [installed('Foo', 3, false)]);
-    expect(row).toMatchObject({ status: 'disabled', actions: ['enable', 'delete'] });
+    const result = resolveModList(catalogOf([soloGroup(variant('Foo', 3))]), [
+      installed('Foo', 3, false),
+    ]);
+    expect(firstVariant(result)).toMatchObject({
+      status: 'disabled',
+      actions: ['enable', 'delete'],
+    });
   });
 
   it('marks an installed mod absent from the release as an orphan', () => {
-    const [row] = resolveModList([], [installed('Foo', 3, true)]);
-    expect(row).toMatchObject({
+    const result = resolveModList(catalogOf([]), [installed('Foo', 3, true)]);
+    expect(firstVariant(result)).toMatchObject({
       status: 'orphan',
       releaseVersion: null,
       installedVersion: 3,
@@ -82,42 +138,105 @@ describe('resolveModList', () => {
     });
   });
 
-  it('treats a disabled mod absent from the release as an orphan (delete only)', () => {
-    const [row] = resolveModList([], [installed('Foo', 2, false)]);
-    expect(row).toMatchObject({ status: 'orphan', actions: ['delete'] });
-  });
-
   it('prioritizes the enabled file when both enabled and disabled exist', () => {
-    const rows = resolveModList(
-      [entry('Foo', 5)],
-      [installed('Foo', 4, true), installed('Foo', 3, false)],
-    );
-    expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({
+    const result = resolveModList(catalogOf([soloGroup(variant('Foo', 5))]), [
+      installed('Foo', 4, true),
+      installed('Foo', 3, false),
+    ]);
+    expect(result.groups).toHaveLength(1);
+    expect(firstVariant(result)).toMatchObject({
       status: 'update-available',
       installedVersion: 4,
       actions: ['update', 'disable', 'delete'],
     });
+    expect(result.groups[0].installedVariantId).toBe('Foo');
   });
 
-  it('collapses duplicate files to the highest version in the same location', () => {
-    const [row] = resolveModList(
-      [entry('Foo', 5)],
-      [installed('Foo', 3, true), installed('Foo', 5, true)],
+  it('sorts groups by name', () => {
+    const result = resolveModList(
+      catalogOf([soloGroup(variant('Zeta', 1)), soloGroup(variant('Alpha', 1))]),
+      [],
     );
-    expect(row).toMatchObject({ status: 'up-to-date', installedVersion: 5 });
-  });
-
-  it('sorts rows by name', () => {
-    const rows = resolveModList([entry('Zeta', 1), entry('Alpha', 1)], []);
-    expect(rows.map((r) => r.modId)).toEqual(['Alpha', 'Zeta']);
+    expect(result.groups.map((g) => g.groupId)).toEqual(['Alpha', 'Zeta']);
   });
 
   it('carries the release asset size, and leaves orphans sizeless', () => {
-    const [inRelease] = resolveModList([entry('Foo', 3, 999)], []);
-    expect(inRelease.size).toBe(999);
+    const inRelease = resolveModList(catalogOf([soloGroup(variant('Foo', 3, { size: 999 }))]), []);
+    expect(firstVariant(inRelease).size).toBe(999);
 
-    const [orphan] = resolveModList([], [installed('Bar', 1, true)]);
-    expect(orphan.size).toBeNull();
+    const orphan = resolveModList(catalogOf([]), [installed('Bar', 1, true)]);
+    expect(firstVariant(orphan).size).toBeNull();
+  });
+
+  it('returns orphan groups and null metadata when the catalog is unavailable', () => {
+    const result = resolveModList(null, [installed('Foo', 2, true)]);
+    expect(result.metadata).toBeNull();
+    expect(firstVariant(result)).toMatchObject({ status: 'orphan', actions: ['delete'] });
+  });
+
+  describe('conflicts (enabled-only)', () => {
+    const shared = ['data/db/Race.xml'];
+
+    it('blocks installing a mod that conflicts with an enabled mod, naming it', () => {
+      const catalog = catalogOf([
+        soloGroup(variant('A', 1, { usedFiles: shared, name: 'Mod A' })),
+        soloGroup(variant('B', 1, { usedFiles: shared, name: 'Mod B' })),
+      ]);
+      const result = resolveModList(catalog, [installed('A', 1, true)]);
+      const bRow = result.groups.find((g) => g.groupId === 'B')!.variants[0];
+      expect(bRow.actions).toEqual([]);
+      expect(bRow.conflicts).toEqual([{ modId: 'A', modName: 'Mod A' }]);
+    });
+
+    it('does NOT block installs when the conflicting mod is only disabled', () => {
+      const catalog = catalogOf([
+        soloGroup(variant('A', 1, { usedFiles: shared })),
+        soloGroup(variant('B', 1, { usedFiles: shared })),
+      ]);
+      const result = resolveModList(catalog, [installed('A', 1, false)]);
+      const bRow = result.groups.find((g) => g.groupId === 'B')!.variants[0];
+      expect(bRow.actions).toEqual(['install']);
+      expect(bRow.conflicts).toEqual([]);
+    });
+
+    it('makes a conflicting disabled mod delete-only (enable blocked)', () => {
+      const catalog = catalogOf([
+        soloGroup(variant('A', 1, { usedFiles: shared, name: 'Mod A' })),
+        soloGroup(variant('B', 1, { usedFiles: shared })),
+      ]);
+      const result = resolveModList(catalog, [installed('A', 1, true), installed('B', 1, false)]);
+      const bRow = result.groups.find((g) => g.groupId === 'B')!.variants[0];
+      expect(bRow.status).toBe('disabled');
+      expect(bRow.actions).toEqual(['delete']);
+      expect(bRow.conflicts).toEqual([{ modId: 'A', modName: 'Mod A' }]);
+    });
+
+    it('does not treat same-group variants as conflicts (auto-switch)', () => {
+      const group: CatalogGroup = {
+        groupId: 'BriHpBars',
+        modName: 'Bri Hp Bars',
+        findiasTags: [],
+        hasVariants: true,
+        mutuallyExclusive: true,
+        variants: [
+          variant('BriHpBars1And2', 1, { usedFiles: shared }),
+          variant('BriHpBars1And3', 1, { usedFiles: shared }),
+        ],
+      };
+      const result = resolveModList(catalogOf([group]), [installed('BriHpBars1And2', 1, true)]);
+      const other = result.groups[0].variants.find((v) => v.modId === 'BriHpBars1And3')!;
+      expect(other.conflicts).toEqual([]);
+      expect(other.actions).toEqual(['install']);
+    });
+  });
+
+  it('sets the banner-only outdated flag without affecting status', () => {
+    const result = resolveModList(
+      catalogOf([soloGroup(variant('Foo', 3))], { current: '1.2.4', supported: '1.2.3' }),
+      [installed('Foo', 3, true)],
+    );
+    expect(result.metadata?.outdated).toBe(true);
+    // The mod is current; outdated metadata must not change its status.
+    expect(firstVariant(result).status).toBe('up-to-date');
   });
 });

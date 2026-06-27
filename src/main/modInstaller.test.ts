@@ -4,16 +4,22 @@ import { join } from 'node:path';
 import { resolveGamePaths } from './gameLocation';
 import { createPackageModStore } from './modStore';
 import { installOrUpdateMod } from './modInstaller';
-import type { CatalogEntry } from './providers/catalog';
+import type { CatalogVariant } from './providers/catalog';
 
 const root = `${process.env.TEMP ?? process.env.TMPDIR ?? '/tmp'}/findias-installer-test`;
 const paths = resolveGamePaths(root);
 
-const entryOf = (modId: string, version: number, ...payload: number[]): CatalogEntry => ({
+const entryOf = (modId: string, version: number, ...payload: number[]): CatalogVariant => ({
   modId,
-  version,
+  modName: modId,
   fileName: `uiscias${modId}_${version}.it`,
+  version,
   size: payload.length,
+  updateType: 'stable',
+  usedFiles: [],
+  modAuthor: 'Root50199',
+  modAdditionalCredits: 'None',
+  recentUpdateNotes: 'n/a',
   fetchBytes: async (): Promise<ReadableStream<Uint8Array>> =>
     new ReadableStream({
       start(controller) {
@@ -69,6 +75,23 @@ describe('installOrUpdateMod', () => {
 
     expect(await fs.readdir(paths.disabledDir)).toEqual([]);
     expect(await fs.readdir(paths.packageDir)).toContain('uisciasFoo_3.it');
+  });
+
+  it('removes installed sibling variants on an auto-switch', async () => {
+    // An enabled sibling and a disabled sibling, both replaced by the new variant.
+    await fs.writeFile(join(paths.packageDir, 'uisciasBriHpBars1And2_3.it'), 'old', 'utf-8');
+    await fs.writeFile(join(paths.disabledDir, 'uisciasBriHpBars1And4_2.it'), 'old', 'utf-8');
+
+    await installOrUpdateMod({
+      entry: entryOf('BriHpBars1And3', 3, 9),
+      store: createPackageModStore(paths),
+      packageDir: paths.packageDir,
+      replaceSiblings: ['BriHpBars1And2', 'BriHpBars1And4'],
+    });
+
+    const remaining = (await fs.readdir(paths.packageDir)).filter((n) => n !== 'disabled');
+    expect(remaining).toEqual(['uisciasBriHpBars1And3_3.it']);
+    expect(await fs.readdir(paths.disabledDir)).toEqual([]);
   });
 
   it('forwards download progress', async () => {

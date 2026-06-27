@@ -108,27 +108,36 @@ Example — the settings schema is the source for both validation and the type:
 ```ts
 export const settingsSchema = z.object({
   gameRootPath: z.string().nullable().catch(null),
+  includePrereleases: z.boolean().catch(true),
 });
 export type Settings = z.infer<typeof settingsSchema>;
 ```
+
+The same lenient `safeParse` approach validates the copied `manifestCatalog.json`
+schema — see [Schema sharing](#schema-sharing-copied-from-uiscias).
 
 ## Distribution model
 
 ```
 tekashi-side/Findias (GitHub)        Root50199/Uiscias (GitHub)
         │ Releases                            │ Releases
-        │  └─ Findias-Setup-x.y.z.exe         │  └─ Uiscias<Name>_<n>.it  (mod assets)
+        │  └─ Findias-Setup-x.y.z.exe         │  ├─ manifestCatalog.json  (the catalog)
+        │                                     │  └─ Uiscias<Name>_<n>.it  (mod assets)
         ▼                                     ▼
-   user downloads & runs            Findias reads release[0] assets,
-   the Findias app  ───────────────► downloads chosen mods directly
-                                      into  appdata\package
+   user downloads & runs            Findias reads the latest release's
+   the Findias app  ───────────────► manifestCatalog.json, then downloads
+                                      chosen mods directly into appdata\package
 ```
 
 - Findias is built with electron-builder and published as a release asset on
   **`tekashi-side/Findias`**. Users get new Findias versions by downloading the
   latest release there.
-- The mod `.it` files live on **`Root50199/Uiscias`** releases. Findias never
-  re-hosts them; the user downloads them straight from GitHub's CDN.
+- The mod `.it` files and the `manifestCatalog.json` live on
+  **`Root50199/Uiscias`** releases. Findias never re-hosts them; the user
+  downloads them straight from GitHub's CDN.
+- Findias selects the **newest** eligible release. Whether **prereleases** count
+  as eligible is a persisted user setting (`includePrereleases`), needed because
+  the manifest currently ships only on prereleases.
 
 ## App self-update
 
@@ -186,7 +195,7 @@ security/architecture decision.
 │  - All filesystem, network, and dialog operations                  │
 │  - Owns the canonical in-memory app state                          │
 │  - Modules: SettingsStore, GameLocation, ModStore,                 │
-│    GitHubReleaseCatalogProvider (ModCatalogProvider),              │
+│    ManifestCatalogProvider (ModCatalogProvider),                  │
 │    PackageFolderProvider (InstalledModsProvider),                  │
 │    ModResolver, ModInstaller, Downloader, Updater                  │
 └────────────────────────────────────────────────────────────────────┘
@@ -223,8 +232,10 @@ src/
 │  ├─ downloader.ts          # stream → temp file → atomic rename + progress
 │  ├─ updater.ts             # electron-updater wrapper (app self-update)
 │  └─ providers/             # swappable source seams (the DI boundary)
-│     ├─ catalog.ts              # ModCatalogProvider contract + CatalogEntry + CatalogError
-│     ├─ githubReleaseCatalog.ts # createGitHubReleaseCatalogProvider (current impl)
+│     ├─ catalog.ts              # ModCatalogProvider contract + Catalog/Group/Variant + CatalogError
+│     ├─ manifestSchema.ts       # copied lenient zod schema for manifestCatalog.json
+│     ├─ githubReleases.ts       # release fetch + newest-eligible selection helper
+│     ├─ manifestCatalog.ts      # createManifestCatalogProvider (current impl)
 │     ├─ installed.ts            # InstalledModsProvider contract + InstalledMod
 │     └─ packageFolder.ts        # createPackageFolderProvider (current impl)
 ├─ preload/
@@ -240,8 +251,8 @@ src/
 │  └─ theme.ts               # (future) extracted MUI theme
 └─ shared/                   # ONLY code that crosses the IPC boundary
    ├─ api.ts                 # FindiasApi contract, channel names, IPC DTOs
-   ├─ modList.ts             # (future) ModListState / row view-model DTOs
-   ├─ modFilename.ts         # filename grammar parser (used by both sides) (+ .test.ts)
+   ├─ modList.ts             # ModListState + ModGroupRow/ModVariantRow DTOs
+   ├─ modFilename.ts         # filename grammar parser (installed scan) (+ .test.ts)
    └─ modFilename.test.ts
 ```
 
@@ -254,14 +265,14 @@ Conventions that keep the tree stable:
 - **Inside `providers/`, the contract and each implementation are separate
   files.** The interface + its normalized types live in a `<domain>.ts`
   (`catalog.ts`, `installed.ts`); each concrete source is its own
-  `<strategy>.ts` (`githubReleaseCatalog.ts`, `packageFolder.ts`) that imports
+  `<strategy>.ts` (`manifestCatalog.ts`, `packageFolder.ts`) that imports
   and implements the contract. **Adding a source is purely additive** — drop in
-  e.g. `manifestCatalog.ts` implementing `ModCatalogProvider` and switch which
+  e.g. `localManifest.ts` implementing `InstalledModsProvider` and switch which
   factory the startup wiring calls; no contract or consumer changes.
 - **Tests co-locate** with their subject as `<module>.test.ts`.
 - **`shared/` means "crosses IPC."** It holds the `FindiasApi` contract, channel
   names, and the serializable DTOs the renderer renders (e.g. `ModListState`).
-  Provider interfaces and non-serializable types like `CatalogEntry` (whose
+  Provider interfaces and non-serializable types like `CatalogVariant` (whose
   `fetchBytes()` returns a stream) are **main-only** and stay in `main/` — they
   never reach the renderer, so they don't belong in `shared/`. Promote a type to
   `shared/` only when it actually needs to cross the boundary.
@@ -280,14 +291,15 @@ All renderer↔main communication goes through a single typed API exposed on
 // Shape exposed by the preload (illustrative, not final)
 interface FindiasApi {
   // settings & setup
-  getSettings(): Promise<Settings>;
-  chooseGameFolder(): Promise<{ ok: boolean; path?: string; error?: string }>;
+  getSetupState(): Promise<SetupState>; // { gameRootPath, valid, includePrereleases }
+  chooseGameFolder(): Promise<ChooseFolderResult>;
+  setIncludePrereleases(value: boolean): Promise<ModListState>; // persist + re-resolve
 
   // catalog
-  refresh(): Promise<ModListState>; // scan disk + fetch release + resolve
+  refresh(): Promise<ModListState>; // scan disk + fetch manifest + resolve
 
   // mutations
-  installOrUpdate(modId: string): Promise<ModListState>;
+  installOrUpdate(modId: string): Promise<ModListState>; // installs/updates; auto-switches variants
   deleteMod(modId: string): Promise<ModListState>;
   setDisabled(modId: string, disabled: boolean): Promise<ModListState>;
 
@@ -308,42 +320,55 @@ Design rules for the boundary:
 ## Source abstraction (swappable providers)
 
 Both "sources of truth" are accessed **only through interfaces**, never directly
-by the rest of the app. This is a deliberate seam: the _current_ implementations
-read GitHub releases (remote) and scan the `package` folder (local), but either
-can be swapped for a different strategy by changing **one module**, with no
-impact on `ModResolver`, `ModInstaller`, the IPC layer, or the UI.
+by the rest of the app. The remote catalog now has a **single** implementation
+(`ManifestCatalogProvider`), so the catalog keeps the manifest's **grouped** shape
+end-to-end (no flatten/regroup); the interface remains mainly so tests can inject
+a stubbed `fetch`. The local installed-state seam still anticipates a swap, with
+no impact on `ModResolver`, `ModInstaller`, the IPC layer, or the UI.
 
 Anticipated future strategies the design must not preclude:
 
-- **Remote catalog:** instead of reading release **assets**, read the
-  `manifestCatalog.json` attached to the release, or read files from the latest
-  `main` branch of the Uiscias source tree. The manifest is an object
-  `{ metadata, modList }`: `modList` is the array of mod groups (flattened to
-  `CatalogEntry[]`), and `metadata` carries catalog-wide fields (`schemaVersion`,
-  `currentGameVersion`, `supportedGameVersion`, `generatedAt`). The copied schema
-  should validate **leniently** (tolerate unknown/new top-level `metadata`
-  fields) so an older Findias can still read a newer manifest. (Contract not
-  finalized.)
 - **Local installed-state:** instead of scanning the folder, read a richer
   `installedMods.json` / `manifest.json` in the `package` directory that also
   records metadata like install/update timestamps. (Contract not finalized.)
 
-### The two interfaces
+### The interfaces
+
+The remote catalog mirrors `manifestCatalog.json` 1:1 — `{ metadata, groups }`,
+where every group has one or more variants. A non-variant mod is simply a group
+of one. See [Schema sharing](#schema-sharing-copied-from-uiscias) for how the
+manifest is validated.
 
 ```ts
-// Remote: "what mods exist, their versions, and how to obtain the bytes"
+// Remote: "what mods exist (grouped, with variants), and how to obtain the bytes"
 interface ModCatalogProvider {
-  getCatalog(): Promise<CatalogEntry[]>; // normalized, source-agnostic
+  getCatalog(includePrereleases: boolean): Promise<Catalog>;
 }
 
-interface CatalogEntry {
-  modId: string; // <ModFileName>
-  version: number; // parsed integer
+interface Catalog {
+  metadata: CatalogMetadata; // game versions, schemaVersion, generatedAt
+  groups: CatalogGroup[];
+}
+
+interface CatalogGroup {
+  groupId: string;
+  modName: string; // group display name
+  findiasTags: string[];
+  hasVariants: boolean;
+  mutuallyExclusive: boolean;
+  variants: CatalogVariant[]; // length 1 for a non-variant mod
+}
+
+interface CatalogVariant {
+  modId: string; // <ModFileName>, the install identity
+  modName: string; // human display name
   fileName: string; // target file name in package/
-  size?: number;
+  version: number;
+  size: number;
+  updateType: string; // stable | volatile (freshness class)
+  usedFiles: string[]; // files this mod modifies → conflict detection
   // The provider returns a way to fetch bytes without leaking source details:
-  fetchBytes(): Promise<ReadableStream>; // e.g. a release asset URL, or a raw
-  // file URL from the source tree
+  fetchBytes(): Promise<ReadableStream>; // resolved from the release's .it asset URL
 }
 
 // Local: "what is installed, and how we record changes to that record"
@@ -363,7 +388,7 @@ interface InstalledMod {
 }
 ```
 
-The rest of the system depends on these **normalized types** (`CatalogEntry`,
+The rest of the system depends on these **normalized types** (`Catalog`,
 `InstalledMod`) — never on GitHub-specific or filesystem-specific shapes.
 
 ### Separation of physical store vs. installed-state record
@@ -384,11 +409,15 @@ deleted, and moved there. We therefore separate two concerns:
 
 ### Current implementations
 
-| Interface               | Current implementation         | Reads/writes                                | Possible future implementation                                                                                                            |
-| ----------------------- | ------------------------------ | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `ModCatalogProvider`    | `GitHubReleaseCatalogProvider` | `GET /releases` → newest non-draft → assets | `ManifestCatalogProvider` (release `manifestCatalog.json`, shaped `{ metadata, modList }`) or `SourceTreeCatalogProvider` (latest `main`) |
-| `InstalledModsProvider` | `PackageFolderProvider`        | scans `package` + `package/disabled`        | `LocalManifestProvider` (`installedMods.json`)                                                                                            |
-| `ModStore` (invariant)  | `PackageModStore`              | writes/deletes/moves `.it` in `package`     | — (does not change)                                                                                                                       |
+| Interface               | Current implementation    | Reads/writes                                                         | Possible future implementation                 |
+| ----------------------- | ------------------------- | -------------------------------------------------------------------- | ---------------------------------------------- |
+| `ModCatalogProvider`    | `ManifestCatalogProvider` | `GET /releases` → newest eligible → its `manifestCatalog.json` asset | `SourceTreeCatalogProvider` (latest `main`)    |
+| `InstalledModsProvider` | `PackageFolderProvider`   | scans `package` + `package/disabled`                                 | `LocalManifestProvider` (`installedMods.json`) |
+| `ModStore` (invariant)  | `PackageModStore`         | writes/deletes/moves `.it` in `package`                              | — (does not change)                            |
+
+The GitHub release-fetch + newest-eligible-selection logic is factored into a
+small `providers/githubReleases.ts` helper (rate-limit, network, HTTP, and
+prerelease-filter handling) reused by `ManifestCatalogProvider`.
 
 Swapping a source = constructing a different provider at startup and passing it
 in (dependency injection). The detail of _which_ provider is in use is confined
@@ -397,47 +426,80 @@ to that one module.
 **File organization.** Each interface and its implementations are scoped to
 separate files under `src/main/providers/`: the contract (interface + normalized
 types) lives in `catalog.ts` / `installed.ts`, and every concrete source is its
-own sibling file — `githubReleaseCatalog.ts`, `packageFolder.ts` today, and e.g.
-`manifestCatalog.ts` or `localManifest.ts` later. Adding a source is therefore
-**additive** (a new file implementing the existing contract); switching sources
-is a one-line change at the startup wiring. See
-[Repository layout](#repository-layout).
+own sibling file — `manifestCatalog.ts`, `packageFolder.ts` today, plus the
+copied `manifestSchema.ts` and the `githubReleases.ts` fetch helper, and e.g.
+`localManifest.ts` later. Adding a source is therefore **additive** (a new file
+implementing the existing contract); switching sources is a one-line change at
+the startup wiring. See [Repository layout](#repository-layout).
+
+### Schema sharing (copied from Uiscias)
+
+The `manifestCatalog.json` shape is owned by Uiscias. Per project decision the
+**zod schema is copied** into both repos (a shared `@uiscias/schema` package is a
+later option). Findias's copy lives in `providers/manifestSchema.ts` and is
+deliberately **lenient** so an older Findias can read a newer manifest:
+
+- `findiasTags` is `string[]` (not a closed enum), so new upstream tags render
+  instead of failing validation.
+- `updateType` falls back to `volatile` for unknown values.
+- `metadata` passes through unknown top-level fields.
+- A `MANIFEST_SCHEMA_VERSION` constant guards against a breaking format bump: a
+  manifest whose `metadata.schemaVersion` exceeds it is rejected with a clear
+  "update Findias" message.
 
 ## External integration: GitHub (current `ModCatalogProvider`)
 
-> This section describes `GitHubReleaseCatalogProvider`, the **current**
-> implementation of [`ModCatalogProvider`](#the-two-interfaces). If the remote
-> contract later changes to a `manifest.json` or source-tree strategy, only this
-> module changes; it must keep returning normalized `CatalogEntry[]`.
+> This section describes `ManifestCatalogProvider`, the **current** implementation
+> of [`ModCatalogProvider`](#the-interfaces). If the remote contract later changes
+> to a source-tree strategy, only this module changes; it must keep returning a
+> normalized `Catalog`.
 
 ### Reading the available mods (release client)
 
 - **Endpoint:** `GET https://api.github.com/repos/Root50199/Uiscias/releases`
-- **Selection:** take the newest **non-draft** entry — effectively `releases[0]`
-  after filtering out `draft: true`. We use the _list_ endpoint (not
-  `/releases/latest`) on purpose: `/releases/latest` **excludes prereleases**,
-  and Uiscias ships `-beta`/prerelease-flagged builds, which we still want to
-  surface.
+- **Selection:** take the newest **non-draft** entry. Whether prereleases are
+  eligible depends on the persisted `includePrereleases` setting; we use the
+  _list_ endpoint (not `/releases/latest`, which always excludes prereleases) so
+  prerelease-flagged builds can be surfaced when the user opts in. This selection
+  logic lives in `providers/githubReleases.ts`.
 - **Auth:** none. Public repo, unauthenticated request.
-- **Per-asset fields consumed:** `name`, `size`, `browser_download_url`,
-  `content_type`, `updated_at`.
-- **Filtering:** only assets whose `name` ends in `.it` **and** parse cleanly as
-  a managed mod (see filename grammar) are kept. Everything else (source zips,
-  notes, stray files) is ignored defensively.
+- **The catalog asset:** the provider finds the release's `manifestCatalog.json`
+  asset, downloads it, and validates it with the copied lenient schema. It also
+  builds a `fileName → browser_download_url` map from the release's `.it` assets
+  so each variant's `fetchBytes()` can resolve its download URL. A release with no
+  manifest asset surfaces a clear "not published yet" `CatalogError`.
 
-Example of the response shape we depend on (verified against the live repo):
+Example of the manifest shape we depend on:
 
 ```json
 {
-  "tag_name": "...",
-  "prerelease": true,
-  "draft": false,
-  "assets": [
+  "metadata": {
+    "schemaVersion": 1,
+    "currentGameVersion": "1.2.4",
+    "supportedGameVersion": "1.2.3",
+    "generatedAt": "2026-06-27T10:14:25.451Z"
+  },
+  "modList": [
     {
-      "name": "UisciasDDtimer_00005.it",
-      "size": 135779,
-      "content_type": "application/octet-stream",
-      "browser_download_url": "https://github.com/Root50199/Uiscias/releases/download/<tag>/UisciasDDtimer_00005.it"
+      "groupId": "BriHpBars",
+      "modName": "Bri Hp Bars",
+      "findiasTags": ["Combat", "UI"],
+      "hasVariants": true,
+      "mutuallyExclusive": true,
+      "variants": [
+        {
+          "modId": "BriHpBars1And2",
+          "modName": "Bri Hp Bars 1 And 2",
+          "fileName": "UisciasBriHpBars1And2_00003.it",
+          "version": 3,
+          "size": 1106734,
+          "updateType": "volatile",
+          "usedFiles": ["data/db/Race.xml"],
+          "modAuthor": "Root50199",
+          "modAdditionalCredits": "None",
+          "recentUpdateNotes": "n/a"
+        }
+      ]
     }
   ]
 }
@@ -446,9 +508,9 @@ Example of the response shape we depend on (verified against the live repo):
 ### Rate limits
 
 Unauthenticated GitHub API requests are limited to **60 per hour per IP**
-(confirmed via `X-RateLimit-Limit: 60`). Findias makes **one** release request
-per launch (plus the user's own download actions, which hit the CDN, not the
-API). This is comfortably within budget. The client should still:
+(confirmed via `X-RateLimit-Limit: 60`). Findias makes **one** release API request
+per launch; the manifest and mod downloads hit the CDN (`browser_download_url`),
+not the API. This is comfortably within budget. The client should still:
 
 - Read `X-RateLimit-Remaining` / `X-RateLimit-Reset` and surface a friendly
   "try again later" message on `403` rate-limit responses instead of failing
@@ -484,7 +546,7 @@ API). This is comfortably within budget. The client should still:
 ### Scanning installed mods (current `InstalledModsProvider`)
 
 This is `PackageFolderProvider`, the **current** implementation of
-[`InstalledModsProvider`](#the-two-interfaces). It derives installed state purely
+[`InstalledModsProvider`](#the-interfaces). It derives installed state purely
 from the filesystem; if we later adopt an `installedMods.json`, only this module
 is replaced (see [Source abstraction](#source-abstraction-swappable-providers)).
 
@@ -525,8 +587,11 @@ Uiscias<ModFileName>_<number>.it
 - **Ownership** = the `Uiscias` prefix marks files Findias may manage. Files
   without it are out of scope and never touched.
 
-A single shared parser/validator is used by **both** the package scanner and the
-release client, so on-disk files and release assets are interpreted identically.
+The parser is used by the **package scanner** to derive installed `modId` +
+`version` from on-disk files. The catalog no longer parses asset names — `modId`,
+`version`, and `fileName` come straight from the manifest — so the parser's job is
+now strictly to interpret what is **installed** (and to match it back to the
+catalog by `modId`).
 
 ```ts
 // Single source of truth for the grammar (illustrative)
@@ -539,49 +604,63 @@ interface ParsedMod {
 }
 ```
 
-> **Upstream dependency.** Per project decision, the canonical naming convention
-> is owned upstream: the Uiscias maintainer adopts `Uiscias<ModFileName>_<number>.it`
-> as the published contract for release assets. Findias's parser is **strict**
-> about what qualifies as a managed mod but **tolerant** of non-conforming files
-> (it skips them rather than erroring). See the migration note below.
+> **Upstream dependency.** The canonical naming convention is owned upstream: the
+> Uiscias maintainer publishes `Uiscias<ModFileName>_<number>.it` assets and the
+> matching `manifestCatalog.json`. Findias's parser is **strict** about what
+> qualifies as a managed installed file but **tolerant** of non-conforming files
+> (it skips them rather than erroring).
 
-### Migration / transition handling
+### Non-conforming / stray files
 
-At the time of writing, the live Uiscias release assets do **not** yet use the
-`Uiscias` prefix (e.g. `DDtimer_00005.it`, `Crom_2.it`). Until the upstream
-release adopts the convention, a strict parser yields an **empty managed-mod
-list**. The architecture handles this gracefully:
-
-- The release client and scanner **skip** non-conforming assets/files silently
-  (no crash, no accidental management of unowned files).
-- The UI renders a clear empty state ("No compatible mods found in the latest
-  release") rather than an error.
-
-This keeps Findias correct and safe both during the upstream migration and
-permanently against stray non-mod assets.
+Files in `package` that don't match the managed grammar (official
+`data_XXXXX.it`, third-party mods) are **skipped** silently — never scanned as
+managed, never modified. If the catalog itself is unavailable (offline,
+rate-limited, no manifest yet), the resolver still returns installed mods as
+orphans so the user can manage them, and the UI shows a clear banner.
 
 ## Mod resolution (joining the two sources)
 
-The `ModResolver` merges the release catalog and the disk scan, keyed by
-`modId`, into the list the UI renders.
+The `ModResolver` merges the grouped catalog and the disk scan into the grouped
+list the UI renders: `resolveModList(catalog, installed) → { groups, metadata }`.
+It iterates the catalog **groups**, building a `ModVariantRow` per variant (keyed
+by `modId`) and a `ModGroupRow` per group; installed mods absent from the catalog
+become single-variant **orphan** groups.
 
-For each `modId` present in the release and/or on disk, compute status:
+**Per-variant status** is strictly **version-number based** (catalog game-version
+metadata never influences it):
 
-| Release has it | Installed (enabled) | Installed (disabled) | Status                                                              |
-| -------------- | ------------------- | -------------------- | ------------------------------------------------------------------- |
-| ✓              | —                   | —                    | **Not installed** → show _Install_                                  |
-| ✓              | = release version   | —                    | **Up to date** → show _Disable_ + _Delete_                          |
-| ✓              | < release version   | —                    | **Update available** → show _Update_ + _Disable_ + _Delete_         |
-| ✓              | —                   | any                  | **Disabled** → show _Enable_ (+ _Update_ if stale) + _Delete_       |
-| —              | any                 | any                  | **Orphan** (installed, not in current release) → show _Delete_ only |
+| Catalog has it | Installed (enabled) | Installed (disabled) | Status                                                   |
+| -------------- | ------------------- | -------------------- | -------------------------------------------------------- |
+| ✓              | —                   | —                    | **Not installed** → _Install_                            |
+| ✓              | ≥ catalog version   | —                    | **Up to date** → _Disable_ + _Delete_                    |
+| ✓              | < catalog version   | —                    | **Update available** → _Update_ + _Disable_ + _Delete_   |
+| ✓              | —                   | any                  | **Disabled** → _Enable_ (+ _Update_ if stale) + _Delete_ |
+| —              | any                 | any                  | **Orphan** (installed, not in catalog) → _Delete_ only   |
 
-> An installed version **newer** than the release is treated as up-to-date.
-> Orphans are delete-only: a mod no longer offered by the release is not
-> something you would enable/disable, only remove.
+**Conflict detection (enabled-only).** Because the game loads only the `package`
+root, only **enabled** mods can truly conflict. The resolver builds a
+`usedFile → enabled-mod` index from enabled, catalog-known installs. For each
+variant it collects the enabled mods sharing any `usedFiles`, **excluding
+same-group siblings** (a mutually-exclusive switch handles those). When that set
+is non-empty, every action that would **enable** the variant
+(`install`/`update`/`enable`) is dropped and the conflicting mods are listed in
+`conflicts` (by `modName`) for the UI. Concretely, a conflicting **disabled**
+variant collapses to **Delete-only**, and a conflicting **not-installed** variant
+loses its Install. Two conflicting mods may both be installed; they can never both
+be enabled. Deleting/disabling the enabled blocker restores the actions on the
+next resolve.
 
-The resulting `ModListState` is an array of view models containing: display
-name, release version, installed version (or null), status, size, and the set of
-valid actions. This is exactly what the scrollable list rows render.
+**Freshness signals (two, never mixed).** The resolver sets a single
+banner-only flag, `metadata.outdated = supportedGameVersion !== currentGameVersion`.
+It drives **only** the top-of-app banner and the conditional display of each
+variant's `updateType` (`stable`/`volatile`); it is never read into any variant's
+`status`. A variant's `update-available` remains strictly version-number based.
+
+The resulting `ModListState` is `{ groups, catalog, metadata }`. Each
+`ModGroupRow` carries `groupId`, group `name`, `tags`, `hasVariants`,
+`mutuallyExclusive`, `installedVariantId`, and its `variants`; each
+`ModVariantRow` carries display name, versions, size, `fileName`, `updateType`,
+`tags`, `status`, `actions`, and `conflicts`.
 
 ## Core flows
 
@@ -593,24 +672,35 @@ app ready
   → valid game path? ──no──► show setup gate (chooseGameFolder)
         │ yes
         ▼
-  InstalledModsProvider.list()    ┐ run in parallel
-  ModCatalogProvider.getCatalog() ┘ (current impls: folder scan + GitHub release)
-  → ModResolver.merge() → ModListState
-  → renderer renders list (or empty/error state)
+  InstalledModsProvider.list()                       ┐ (folder scan)
+  ModCatalogProvider.getCatalog(includePrereleases)  ┘ (manifest of newest release)
+  → resolveModList(catalog, installed) → { groups, metadata }
+  → ModListState { groups, catalog, metadata }
+  → renderer renders grouped list + freshness banner (or empty/error state)
   → (separately) Updater.checkForUpdates() for the Findias app itself
 ```
 
-### Install
+> A catalog fetch failure degrades softly: installed mods are still returned (as
+> orphans), `catalog.available` is false with a message, and `metadata` is null.
+
+### Install / variant auto-switch
 
 ```
 installOrUpdate(modId)
-  → resolve CatalogEntry for modId (from ModCatalogProvider)
-  → Downloader: stream entry.fetchBytes() → package/<tempfile>
-     (emit onDownloadProgress)
+  → getCatalog → find { group, variant } for modId
+  → if group.mutuallyExclusive: replaceSiblings = other variants' modIds
+  → Downloader: stream variant.fetchBytes() → package/<tempfile>
+     (emit onDownloadProgress, totalBytes = variant.size)
   → ModStore: atomic rename → package/Uiscias<modId>_<n>.it
-  → InstalledModsProvider.onInstalled(...) (no-op for folder scan today)
-  → re-list + re-resolve → return ModListState
+  → ModStore.removeManaged(modId, keep new file)   (replace old version)
+  → ModStore.removeManaged(siblingModId) for each replaceSibling  (variant switch)
+  → re-list + re-resolve (same catalog) → return ModListState
 ```
+
+Choosing a different variant is therefore a single action: install the chosen one,
+then remove the previously-installed sibling. The enabled-only conflict rule means
+the resolver already prevents enabling a mod that would clash with an unrelated
+enabled mod, so no separate guard is needed here.
 
 ### Update (replace semantics)
 
@@ -655,12 +745,13 @@ by Findias.
 ```ts
 interface Settings {
   gameRootPath: string | null; // the appdata folder
+  includePrereleases: boolean; // whether prereleases are eligible (default true)
   // future: UI prefs, last-used filters, etc.
 }
 
 interface AppState {
   settings: Settings; // persisted to userData JSON
-  release: ReleaseSnapshot | null; // in-memory only, this launch
+  catalog: Catalog | null; // in-memory only, this launch (manifest groups + metadata)
   installed: ParsedMod[]; // in-memory only, from disk scan
   modList: ModListState; // derived, sent to renderer
   busy: Record<string, ActionStatus>; // per-mod in-flight action + progress
@@ -675,9 +766,10 @@ interface AppState {
 ## Error handling and edge cases
 
 - **No/invalid game path** → setup gate blocks all mod operations.
-- **Offline / GitHub unreachable / rate-limited (403)** → refresh fails softly
-  with a retry affordance; any already-installed mods (from the disk scan) can
-  still be shown and deleted even without the release list.
+- **Offline / GitHub unreachable / rate-limited (403) / no manifest yet** →
+  refresh fails softly with a retry affordance; any already-installed mods (from
+  the disk scan) are still shown as orphans and can be managed even without the
+  catalog.
 - **Partial download / cancel / crash** → temp-file + atomic rename guarantees no
   half-written `.it` in `package`.
 - **Duplicate versions found on disk** (e.g. from a crashed update or manual user
@@ -689,18 +781,18 @@ interface AppState {
 
 ## Module responsibilities (main process)
 
-| Module                         | Implements              | Responsibility                                                                                                                                         |
-| ------------------------------ | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `SettingsStore`                | —                       | Load/save the JSON settings file in `userData`.                                                                                                        |
-| `GameLocation`                 | —                       | Validate a chosen folder; resolve `package` and `package/disabled` paths.                                                                              |
-| `GitHubReleaseCatalogProvider` | `ModCatalogProvider`    | Fetch `/releases`, pick newest non-draft, parse assets, read rate-limit headers; return normalized `CatalogEntry[]`. Swappable (manifest/source-tree). |
-| `PackageFolderProvider`        | `InstalledModsProvider` | List/parse managed `.it` files (root + `package/disabled`); return `InstalledMod[]`. Swappable (`installedMods.json`).                                 |
-| `ModStore`                     | — (invariant)           | Physical disk ops: write/delete/move `.it` files in `package` and `package/disabled`.                                                                  |
-| `ModResolver`                  | —                       | Merge catalog + installed into `ModListState` with status + actions. Depends only on the normalized interfaces.                                        |
-| `Downloader`                   | —                       | Stream a source's bytes to a temp file with progress + atomic rename.                                                                                  |
-| `ModInstaller`                 | —                       | Orchestrate install / update(replace) / delete / disable via the providers + `ModStore`.                                                               |
-| `Updater`                      | —                       | electron-updater wrapper: check the Findias releases feed, surface update events over IPC.                                                             |
-| `ipc`                          | —                       | Register `ipcMain.handle` endpoints; emit progress + update events; return fresh state.                                                                |
+| Module                    | Implements              | Responsibility                                                                                                                                                                    |
+| ------------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SettingsStore`           | —                       | Load/save the JSON settings file in `userData`.                                                                                                                                   |
+| `GameLocation`            | —                       | Validate a chosen folder; resolve `package` and `package/disabled` paths.                                                                                                         |
+| `ManifestCatalogProvider` | `ModCatalogProvider`    | Select newest eligible release (via `githubReleases.ts`), download + leniently validate its `manifestCatalog.json`, return normalized grouped `Catalog`. Swappable (source-tree). |
+| `PackageFolderProvider`   | `InstalledModsProvider` | List/parse managed `.it` files (root + `package/disabled`); return `InstalledMod[]`. Swappable (`installedMods.json`).                                                            |
+| `ModStore`                | — (invariant)           | Physical disk ops: write/delete/move `.it` files in `package` and `package/disabled`.                                                                                             |
+| `ModResolver`             | —                       | Merge grouped catalog + installed into `ModListState` (group/variant rows, status, actions, enabled-only conflicts, banner freshness). Depends only on the normalized interfaces. |
+| `Downloader`              | —                       | Stream a source's bytes to a temp file with progress + atomic rename.                                                                                                             |
+| `ModInstaller`            | —                       | Orchestrate install / update(replace) / delete / disable via the providers + `ModStore`.                                                                                          |
+| `Updater`                 | —                       | electron-updater wrapper: check the Findias releases feed, surface update events over IPC.                                                                                        |
+| `ipc`                     | —                       | Register `ipcMain.handle` endpoints; emit progress + update events; return fresh state.                                                                                           |
 
 ## Out of scope (technical)
 

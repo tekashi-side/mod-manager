@@ -26,6 +26,8 @@ export interface GamePaths {
 export interface SetupState {
   gameRootPath: string | null;
   valid: boolean;
+  /** Whether prerelease Uiscias releases are considered when fetching the catalog. */
+  includePrereleases: boolean;
 }
 
 /** Result of prompting the user to choose a game folder. */
@@ -60,6 +62,8 @@ export interface FindiasApi {
   deleteMod(modId: string): Promise<ModListState>;
   /** Move a mod between the package root and `package/disabled`. */
   setDisabled(modId: string, disabled: boolean): Promise<ModListState>;
+  /** Persist whether prereleases are eligible, then re-resolve the mod list. */
+  setIncludePrereleases(value: boolean): Promise<ModListState>;
   /** Subscribe to download progress; returns an unsubscribe function. */
   onDownloadProgress(callback: (progress: DownloadProgress) => void): () => void;
 }
@@ -73,5 +77,6 @@ export const IpcChannels = {
   installOrUpdate: 'mods:installOrUpdate',
   deleteMod: 'mods:delete',
   setDisabled: 'mods:setDisabled',
+  setIncludePrereleases: 'settings:setIncludePrereleases',
   downloadProgress: 'mods:downloadProgress',
 } as const;

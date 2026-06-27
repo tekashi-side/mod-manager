@@ -13,18 +13,18 @@ import { resolveGamePaths, validateGameRoot, type ValidationResult } from './gam
 import { resolveModList } from './modResolver';
 import { installOrUpdateMod } from './modInstaller';
 import { createPackageModStore } from './modStore';
-import { CatalogError } from './providers/catalog';
-import { createGitHubReleaseCatalogProvider } from './providers/githubReleaseCatalog';
+import { CatalogError, type Catalog } from './providers/catalog';
+import { createManifestCatalogProvider } from './providers/manifestCatalog';
 import { createPackageFolderProvider } from './providers/packageFolder';
 
 /** Resolve the current setup state by re-validating the stored path on disk. */
 const computeSetupState = async (): Promise<SetupState> => {
-  const { gameRootPath } = await loadSettings();
+  const { gameRootPath, includePrereleases } = await loadSettings();
   if (!gameRootPath) {
-    return { gameRootPath: null, valid: false };
+    return { gameRootPath: null, valid: false, includePrereleases };
   }
   const { ok } = await validateGameRoot(gameRootPath);
-  return { gameRootPath, valid: ok };
+  return { gameRootPath, valid: ok, includePrereleases };
 };
 
 /** Resolve the stored game paths, throwing a clear error if setup is invalid. */
@@ -42,50 +42,78 @@ const requireGamePaths = async (): Promise<GamePaths> => {
 
 /**
  * Build the current mod list: scan the package folder + fetch the catalog, then
- * resolve. A catalog failure (offline, rate-limited) degrades softly — installed
- * mods are still returned (as orphans) so the user can manage them, and the
- * failure is reported via `catalog.available`.
+ * resolve. A catalog failure (offline, rate-limited, no manifest) degrades
+ * softly — installed mods are still returned (as orphans) so the user can manage
+ * them, and the failure is reported via `catalog.available`.
  */
 const resolveCurrentState = async (paths: GamePaths): Promise<ModListState> => {
+  const { includePrereleases } = await loadSettings();
   const installed = await createPackageFolderProvider(paths).list();
   try {
-    const catalog = await createGitHubReleaseCatalogProvider().getCatalog();
-    return { rows: resolveModList(catalog, installed), catalog: { available: true } };
+    const catalog = await createManifestCatalogProvider().getCatalog(includePrereleases);
+    const { groups, metadata } = resolveModList(catalog, installed);
+    return { groups, catalog: { available: true }, metadata };
   } catch (error) {
     const message =
       error instanceof CatalogError ? error.message : 'Could not load the mod catalog.';
-    return { rows: resolveModList([], installed), catalog: { available: false, error: message } };
+    const { groups, metadata } = resolveModList(null, installed);
+    return { groups, catalog: { available: false, error: message }, metadata };
   }
 };
 
 const refresh = async (): Promise<ModListState> => resolveCurrentState(await requireGamePaths());
 
+/** Locate a variant + its group in the catalog by modId. */
+const findVariant = (
+  catalog: Catalog,
+  modId: string,
+): {
+  group: Catalog['groups'][number];
+  variant: Catalog['groups'][number]['variants'][number];
+} | null => {
+  for (const group of catalog.groups) {
+    const variant = group.variants.find((candidate) => candidate.modId === modId);
+    if (variant) return { group, variant };
+  }
+  return null;
+};
+
 /**
  * Install or replace a mod, then return the fresh mod list. The catalog is
- * fetched once and reused for both the entry lookup and the post-mutation
- * resolve, avoiding a second GitHub request. Download progress is streamed to
- * the calling renderer over the progress channel.
+ * fetched once and reused for both the lookup and the post-mutation resolve. For
+ * a mutually-exclusive variant group, the chosen variant replaces any installed
+ * sibling (auto-switch). Download progress is streamed to the calling renderer.
  */
 const installOrUpdate = async (event: IpcMainInvokeEvent, modId: string): Promise<ModListState> => {
   const paths = await requireGamePaths();
-  const catalog = await createGitHubReleaseCatalogProvider().getCatalog();
-  const entry = catalog.find((candidate) => candidate.modId === modId);
-  if (!entry) {
+  const { includePrereleases } = await loadSettings();
+  const catalog = await createManifestCatalogProvider().getCatalog(includePrereleases);
+  const found = findVariant(catalog, modId);
+  if (!found) {
     throw new Error(`"${modId}" is not available in the latest release.`);
   }
 
+  const { group, variant } = found;
+  const replaceSiblings = group.mutuallyExclusive
+    ? group.variants
+        .filter((candidate) => candidate.modId !== modId)
+        .map((candidate) => candidate.modId)
+    : [];
+
   await installOrUpdateMod({
-    entry,
+    entry: variant,
     store: createPackageModStore(paths),
     packageDir: paths.packageDir,
+    replaceSiblings,
     onProgress: (receivedBytes) => {
-      const progress: DownloadProgress = { modId, receivedBytes, totalBytes: entry.size ?? null };
+      const progress: DownloadProgress = { modId, receivedBytes, totalBytes: variant.size };
       event.sender.send(IpcChannels.downloadProgress, progress);
     },
   });
 
   const installed = await createPackageFolderProvider(paths).list();
-  return { rows: resolveModList(catalog, installed), catalog: { available: true } };
+  const { groups, metadata } = resolveModList(catalog, installed);
+  return { groups, catalog: { available: true }, metadata };
 };
 
 /** Delete every managed file for a mod, then return the fresh mod list. */
@@ -100,6 +128,13 @@ const setDisabled = async (modId: string, disabled: boolean): Promise<ModListSta
   const paths = await requireGamePaths();
   await createPackageModStore(paths).setDisabled(modId, disabled);
   return resolveCurrentState(paths);
+};
+
+/** Persist the prerelease preference, then re-resolve against the new filter. */
+const setIncludePrereleases = async (value: boolean): Promise<ModListState> => {
+  const settings = await loadSettings();
+  await saveSettings({ ...settings, includePrereleases: value });
+  return resolveCurrentState(await requireGamePaths());
 };
 
 export const registerIpcHandlers = (): void => {
@@ -127,6 +162,10 @@ export const registerIpcHandlers = (): void => {
     setDisabled(modId, disabled),
   );
 
+  ipcMain.handle(IpcChannels.setIncludePrereleases, (_event, value: boolean) =>
+    setIncludePrereleases(value),
+  );
+
   ipcMain.handle(IpcChannels.chooseGameFolder, async (event): Promise<ChooseFolderResult> => {
     const owner = BrowserWindow.fromWebContents(event.sender);
     const dialogOptions = {
@@ -150,6 +189,9 @@ export const registerIpcHandlers = (): void => {
 
     const settings = await loadSettings();
     await saveSettings({ ...settings, gameRootPath: chosen });
-    return { ok: true, state: { gameRootPath: chosen, valid: true } };
+    return {
+      ok: true,
+      state: { gameRootPath: chosen, valid: true, includePrereleases: settings.includePrereleases },
+    };
   });
 };

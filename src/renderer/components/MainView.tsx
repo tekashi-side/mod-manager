@@ -7,6 +7,8 @@ import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
 import Alert from '@mui/material/Alert';
 import CircularProgress from '@mui/material/CircularProgress';
+import FormControlLabel from '@mui/material/FormControlLabel';
+import Switch from '@mui/material/Switch';
 import type { DownloadProgress, SetupState } from '@shared/api';
 import type { ModAction, ModListState } from '@shared/modList';
 import ModList from './ModList';
@@ -20,6 +22,7 @@ const MOD_LIST_KEY = ['modList'] as const;
 const MainView: FC<MainViewProps> = ({ setup }) => {
   const queryClient = useQueryClient();
   const [progressByMod, setProgressByMod] = useState<Record<string, DownloadProgress>>({});
+  const [includePrereleases, setIncludePrereleases] = useState(setup.includePrereleases);
 
   const { data, isLoading, isError, error, isFetching, refetch } = useQuery({
     queryKey: MOD_LIST_KEY,
@@ -60,6 +63,16 @@ const MainView: FC<MainViewProps> = ({ setup }) => {
     onSuccess: seedModList,
   });
 
+  const prerelease = useMutation({
+    mutationFn: (value: boolean) => window.findias.setIncludePrereleases(value),
+    onSuccess: seedModList,
+  });
+
+  const handlePrereleaseChange = (value: boolean): void => {
+    setIncludePrereleases(value);
+    prerelease.mutate(value);
+  };
+
   const handleAction = (action: ModAction, modId: string): void => {
     if (action === 'delete') remove.mutate(modId);
     else if (action === 'enable') toggle.mutate({ modId, disabled: false });
@@ -75,8 +88,10 @@ const MainView: FC<MainViewProps> = ({ setup }) => {
         ? toggle.variables.modId
         : undefined;
 
-  const mutationError = install.error ?? remove.error ?? toggle.error;
-  const rows = data?.rows ?? [];
+  const busy = Boolean(busyModId) || prerelease.isPending;
+  const mutationError = install.error ?? remove.error ?? toggle.error ?? prerelease.error;
+  const groups = data?.groups ?? [];
+  const outdated = data?.metadata?.outdated ?? false;
 
   return (
     <Container maxWidth="sm" sx={{ py: 4 }}>
@@ -85,18 +100,32 @@ const MainView: FC<MainViewProps> = ({ setup }) => {
           <Typography variant="h4" sx={{ flexGrow: 1 }}>
             Findias
           </Typography>
-          <Button
-            variant="outlined"
-            onClick={() => void refetch()}
-            disabled={isFetching || Boolean(busyModId)}
-          >
+          <Button variant="outlined" onClick={() => void refetch()} disabled={isFetching || busy}>
             {isFetching ? 'Refreshing…' : 'Refresh'}
           </Button>
         </Stack>
 
-        <Typography variant="caption" color="text.secondary" sx={{ wordBreak: 'break-all' }}>
-          {setup.gameRootPath}
-        </Typography>
+        <Stack
+          direction="row"
+          spacing={1}
+          sx={{ alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}
+        >
+          <Typography variant="caption" color="text.secondary" sx={{ wordBreak: 'break-all' }}>
+            {setup.gameRootPath}
+          </Typography>
+          <FormControlLabel
+            control={
+              <Switch
+                size="small"
+                checked={includePrereleases}
+                onChange={(event) => handlePrereleaseChange(event.target.checked)}
+                disabled={isFetching || busy}
+              />
+            }
+            label="Include prereleases"
+            slotProps={{ typography: { variant: 'body2' } }}
+          />
+        </Stack>
 
         {isLoading && (
           <Stack sx={{ alignItems: 'center', py: 6 }}>
@@ -123,6 +152,14 @@ const MainView: FC<MainViewProps> = ({ setup }) => {
           </Alert>
         )}
 
+        {data && outdated && (
+          <Alert severity="warning">
+            The mod catalog is verified for game version {data.metadata?.supportedGameVersion}, but
+            the latest client is {data.metadata?.currentGameVersion}. Some mods may be out of date —
+            consider disabling volatile mods until they are updated.
+          </Alert>
+        )}
+
         {data && !data.catalog.available && (
           <Alert severity="warning">
             {data.catalog.error ?? 'The mod catalog is currently unavailable.'} Showing the mods
@@ -130,7 +167,7 @@ const MainView: FC<MainViewProps> = ({ setup }) => {
           </Alert>
         )}
 
-        {data && rows.length === 0 && (
+        {data && groups.length === 0 && (
           <Alert severity="info">
             {data.catalog.available
               ? 'No compatible mods were found in the latest Uiscias release.'
@@ -138,12 +175,13 @@ const MainView: FC<MainViewProps> = ({ setup }) => {
           </Alert>
         )}
 
-        {rows.length > 0 && (
+        {groups.length > 0 && (
           <Box sx={{ maxHeight: 420, overflowY: 'auto', pr: 1 }}>
             <ModList
-              rows={rows}
+              groups={groups}
               busyModId={busyModId}
               progressByMod={progressByMod}
+              outdated={outdated}
               onAction={handleAction}
             />
           </Box>
