@@ -315,9 +315,15 @@ impact on `ModResolver`, `ModInstaller`, the IPC layer, or the UI.
 
 Anticipated future strategies the design must not preclude:
 
-- **Remote catalog:** instead of reading release **assets**, read a
-  `manifest.json` attached to the release, or read files from the latest `main`
-  branch of the Uiscias source tree. (Contract not finalized.)
+- **Remote catalog:** instead of reading release **assets**, read the
+  `manifestCatalog.json` attached to the release, or read files from the latest
+  `main` branch of the Uiscias source tree. The manifest is an object
+  `{ metadata, modList }`: `modList` is the array of mod groups (flattened to
+  `CatalogEntry[]`), and `metadata` carries catalog-wide fields (`schemaVersion`,
+  `currentGameVersion`, `supportedGameVersion`, `generatedAt`). The copied schema
+  should validate **leniently** (tolerate unknown/new top-level `metadata`
+  fields) so an older Findias can still read a newer manifest. (Contract not
+  finalized.)
 - **Local installed-state:** instead of scanning the folder, read a richer
   `installedMods.json` / `manifest.json` in the `package` directory that also
   records metadata like install/update timestamps. (Contract not finalized.)
@@ -378,11 +384,11 @@ deleted, and moved there. We therefore separate two concerns:
 
 ### Current implementations
 
-| Interface               | Current implementation         | Reads/writes                                | Possible future implementation                                                                     |
-| ----------------------- | ------------------------------ | ------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `ModCatalogProvider`    | `GitHubReleaseCatalogProvider` | `GET /releases` → newest non-draft → assets | `ManifestCatalogProvider` (release `manifest.json`) or `SourceTreeCatalogProvider` (latest `main`) |
-| `InstalledModsProvider` | `PackageFolderProvider`        | scans `package` + `package/disabled`        | `LocalManifestProvider` (`installedMods.json`)                                                     |
-| `ModStore` (invariant)  | `PackageModStore`              | writes/deletes/moves `.it` in `package`     | — (does not change)                                                                                |
+| Interface               | Current implementation         | Reads/writes                                | Possible future implementation                                                                                                            |
+| ----------------------- | ------------------------------ | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `ModCatalogProvider`    | `GitHubReleaseCatalogProvider` | `GET /releases` → newest non-draft → assets | `ManifestCatalogProvider` (release `manifestCatalog.json`, shaped `{ metadata, modList }`) or `SourceTreeCatalogProvider` (latest `main`) |
+| `InstalledModsProvider` | `PackageFolderProvider`        | scans `package` + `package/disabled`        | `LocalManifestProvider` (`installedMods.json`)                                                                                            |
+| `ModStore` (invariant)  | `PackageModStore`              | writes/deletes/moves `.it` in `package`     | — (does not change)                                                                                                                       |
 
 Swapping a source = constructing a different provider at startup and passing it
 in (dependency injection). The detail of _which_ provider is in use is confined

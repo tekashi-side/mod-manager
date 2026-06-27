@@ -1,0 +1,3 @@
+# Normalize text to LF in the working tree (matches Prettier's endOfLine: lf),
+# so files stay Prettier-stable regardless of core.autocrlf.
+* text=auto eol=lf
