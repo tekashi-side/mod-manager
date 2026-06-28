@@ -95,9 +95,42 @@ const ModListItem: FC<ModListItemProps> = ({
           <StatusChip status={variant.status} />
         </ItemTitle>
 
-        {tags && tags.length > 0 && (
+        {((showUpdateType && variant.updateType) || (tags && tags.length > 0)) && (
           <div className="flex flex-wrap gap-1">
-            {tags.map((tag) => (
+            {showUpdateType && variant.updateType && (
+              <Badge
+                variant="outline"
+                className={cn(
+                  'gap-1',
+                  variant.updateType === 'volatile'
+                    ? 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400'
+                    : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400',
+                )}
+              >
+                {variant.updateType === 'volatile' ? 'Volatile' : 'Stable'}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      className="inline-flex cursor-help items-center opacity-70 hover:opacity-100"
+                      aria-label={
+                        variant.updateType === 'volatile'
+                          ? 'Volatile mods are likely affected by patches'
+                          : 'Stable mods usually survive patches'
+                      }
+                    >
+                      <Info className="size-3" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {variant.updateType === 'volatile'
+                      ? 'Likely affected by patches'
+                      : 'Usually survives patches'}
+                  </TooltipContent>
+                </Tooltip>
+              </Badge>
+            )}
+            {tags?.map((tag) => (
               <Badge key={tag} variant="outline">
                 {tag}
               </Badge>
@@ -106,42 +139,6 @@ const ModListItem: FC<ModListItemProps> = ({
         )}
 
         <ItemDescription>{versionSummary(variant)}</ItemDescription>
-
-        {showUpdateType && variant.updateType && (
-          <div>
-            <Badge
-              variant="outline"
-              className={cn(
-                'gap-1',
-                variant.updateType === 'volatile'
-                  ? 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400'
-                  : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400',
-              )}
-            >
-              {variant.updateType === 'volatile' ? 'Volatile' : 'Stable'}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    className="inline-flex cursor-help items-center opacity-70 hover:opacity-100"
-                    aria-label={
-                      variant.updateType === 'volatile'
-                        ? 'Volatile mods are likely affected by patches'
-                        : 'Stable mods usually survive patches'
-                    }
-                  >
-                    <Info className="size-3" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  {variant.updateType === 'volatile'
-                    ? 'Likely affected by patches'
-                    : 'Usually survives patches'}
-                </TooltipContent>
-              </Tooltip>
-            </Badge>
-          </div>
-        )}
 
         {variant.conflicts.length > 0 && (
           <p className="text-sm text-amber-600 dark:text-amber-400">

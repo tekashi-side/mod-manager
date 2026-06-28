@@ -200,7 +200,7 @@ const MainView: FC<MainViewProps> = ({ setup }) => {
           )}
 
           {groups.length > 0 && (
-            <ScrollArea className="min-h-0 flex-1">
+            <ScrollArea className="-mr-3 min-h-0 flex-1">
               <div className="pr-3">
                 <ModList
                   groups={groups}

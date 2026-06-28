@@ -76,7 +76,7 @@ const VariantGroupItem: FC<VariantGroupItemProps> = ({
       </CollapsibleTrigger>
 
       <CollapsibleContent>
-        <ItemGroup className="gap-2 pt-2 pl-4">
+        <ItemGroup className="gap-2 pt-2.5 pl-4">
           {group.variants.map((variant) => (
             <ModListItem
               key={variant.modId}
