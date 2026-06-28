@@ -1,4 +1,4 @@
-import { useEffect, useState, type FC } from 'react';
+import { useDeferredValue, useEffect, useMemo, useState, type FC } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { X } from 'lucide-react';
 import { toast } from 'sonner';
@@ -8,6 +8,7 @@ import ModList from './ModList';
 import { Alert, AlertAction, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
@@ -35,6 +36,8 @@ const MainView: FC<MainViewProps> = ({ setup }) => {
   const [progressByMod, setProgressByMod] = useState<Record<string, DownloadProgress>>({});
   const [includePrereleases, setIncludePrereleases] = useState(setup.includePrereleases);
   const [outdatedDismissed, setOutdatedDismissed] = useState(false);
+  const [search, setSearch] = useState('');
+  const deferredSearch = useDeferredValue(search);
 
   const { data, isLoading, isError, error, isFetching, refetch } = useQuery({
     queryKey: MOD_LIST_KEY,
@@ -112,11 +115,26 @@ const MainView: FC<MainViewProps> = ({ setup }) => {
   const groups = data?.groups ?? [];
   const outdated = data?.metadata?.outdated ?? false;
 
+  const filteredGroups = useMemo(() => {
+    const q = deferredSearch.trim().toLowerCase();
+    if (!q) return groups;
+    return groups.filter(
+      (g) =>
+        g.name.toLowerCase().includes(q) ||
+        g.variants.some((v) => v.name.toLowerCase().includes(q)),
+    );
+  }, [groups, deferredSearch]);
+
   return (
     <div className="flex h-full">
       <div className="flex h-full w-[65%] min-w-0 flex-col gap-4 p-6">
         <div className="flex shrink-0 items-center gap-2">
-          <span className="grow text-xs break-all text-muted-foreground">{setup.gameRootPath}</span>
+          <Input
+            className="grow"
+            placeholder="Search for mods"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
           <Button variant="outline" onClick={() => void refetch()} disabled={isFetching || busy}>
             {isFetching ? 'Refreshing…' : 'Refresh'}
           </Button>
@@ -196,11 +214,22 @@ const MainView: FC<MainViewProps> = ({ setup }) => {
             </Empty>
           )}
 
-          {groups.length > 0 && (
+          {data && groups.length > 0 && filteredGroups.length === 0 && (
+            <Empty>
+              <EmptyHeader>
+                <EmptyTitle>No matches</EmptyTitle>
+                <EmptyDescription>
+                  No mods match &ldquo;{deferredSearch.trim()}&rdquo;.
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          )}
+
+          {filteredGroups.length > 0 && (
             <ScrollArea className="-mr-3 min-h-0 flex-1">
               <div className="pr-3">
                 <ModList
-                  groups={groups}
+                  groups={filteredGroups}
                   busyModId={busyModId}
                   progressByMod={progressByMod}
                   outdated={outdated}
