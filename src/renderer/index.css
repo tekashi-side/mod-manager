@@ -132,4 +132,10 @@
   html {
     @apply font-sans;
   }
+  /* Restore the pointer cursor on interactive buttons (Tailwind v4 dropped it).
+     Equivalent to shadcn's `init --pointer`, which is not carried by presets. */
+  button:not(:disabled),
+  [role='button']:not(:disabled) {
+    cursor: pointer;
+  }
 }

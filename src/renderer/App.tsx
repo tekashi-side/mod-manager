@@ -50,7 +50,7 @@ const App: FC = () => {
 
   if (!data.valid) return shell(<SetupGate />);
 
-  return shell(settingsOpen ? <SettingsView setup={data} /> : <MainView setup={data} />);
+  return shell(settingsOpen ? <SettingsView setup={data} /> : <MainView />);
 };
 
 export default App;

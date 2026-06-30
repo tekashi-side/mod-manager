@@ -69,16 +69,19 @@ is decodable/reproducible via `npx shadcn@latest preset decode b1Vn0UwC`.
 
 - All tokens live in [src/renderer/index.css](../src/renderer/index.css): the
   `@theme inline` mapping plus the `:root` (light) and `.dark` token blocks. The
-  app is **dark-only** — `<html class="dark">` in
-  [index.html](../src/renderer/index.html); there is no theme toggle.
+  app supports **system / light / dark** modes via
+  [`components/theme-provider.tsx`](../src/renderer/components/theme-provider.tsx)
+  (persists the choice in `localStorage`, toggles the `<html>` class); the user
+  picks it from the Appearance item in Settings.
 - The Luma component geometry/spacing comes from `@import "shadcn/tailwind.css"`,
   and **Noto Sans is self-hosted** via `@fontsource-variable/noto-sans` (bundled
   woff2, so it works offline and within the renderer's strict CSP — no Google
   Fonts request).
 - shadcn primitives are **vendored** under `components/ui/` and edited in-repo
-  (e.g. `sonner.tsx` was trimmed to drop `next-themes` since we are dark-only).
+  (e.g. `sonner.tsx` reads our `ThemeProvider` instead of `next-themes`).
   Add more with `npx shadcn@latest add <component>`; re-theme later with
-  `npx shadcn@latest apply <preset>`.
+  `npx shadcn@latest apply <preset>`. See [shadcn.md](./shadcn.md) for the full
+  re-theme procedure and the list of local modifications to preserve.
 
 > CLI/tooling note: the shadcn CLI only detects a root `vite.config.*`, but the
 > app builds via `electron.vite.config.ts`. A tiny root `vite.config.ts` shim

@@ -165,6 +165,17 @@ subfolders — see [`game-structure.md`](./game-structure.md).
    banner suggesting users **temporarily disable** mods (especially `volatile`
    ones) after a game patch. Detecting the **actual running client version** and a
    finer-grained **per-mod** verified-version signal remain future work.
+3. **Unified settings store** — the theme preference currently lives in the
+   renderer's `localStorage` (read synchronously at startup, so the `<html>` class
+   is set before first paint with no flash). A stretch goal is to consolidate it —
+   and any future UI preferences — into the single `findias-settings.json` via IPC
+   so there is one source of truth for all settings. The trade-off: reading
+   settings over **async** IPC at startup reintroduces a brief theme flash before
+   the stored value resolves. The clean fix is to expose the initial theme
+   **synchronously** through preload (`ipcRenderer.sendSync`), or to hold the
+   window hidden (it already waits for `ready-to-show`) until the renderer has
+   applied the theme. Functionally nothing is lost; it's tidiness for a little
+   startup plumbing (a schema field, an IPC channel/handler, and the sync read).
 
 ## Out of Scope (for now)
 

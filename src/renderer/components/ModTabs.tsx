@@ -1,4 +1,5 @@
 import { useMemo, type FC } from 'react';
+import { CircleAlert, CirclePause, Layers, PackageCheck, type LucideIcon } from 'lucide-react';
 import type { ModGroupRow, ModStatus } from '@shared/modList';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
@@ -19,6 +20,14 @@ const TAB_ITEMS: readonly { value: ModTab; label: string }[] = [
   { value: 'disabled', label: 'Disabled' },
   { value: 'orphaned', label: 'Orphaned' },
 ];
+
+/** Presentation icons for each tab; mirrors the theme tabs in {@link SettingsView}. */
+const TAB_ICONS: Record<ModTab, LucideIcon> = {
+  all: Layers,
+  installed: PackageCheck,
+  disabled: CirclePause,
+  orphaned: CircleAlert,
+};
 
 /** A group belongs to a tab when any of its variants matches that tab's statuses. */
 export const groupMatchesTab = (group: ModGroupRow, tab: ModTab): boolean =>
@@ -59,12 +68,16 @@ const ModTabs: FC<ModTabsProps> = ({ value, onValueChange, groups }) => {
       className="shrink-0"
     >
       <TabsList className="w-full">
-        {TAB_ITEMS.map((item) => (
-          <TabsTrigger key={item.value} value={item.value}>
-            {item.label}
-            <span className="text-xs tabular-nums text-muted-foreground">{counts[item.value]}</span>
-          </TabsTrigger>
-        ))}
+        {TAB_ITEMS.map((item) => {
+          const Icon = TAB_ICONS[item.value];
+          return (
+            <TabsTrigger key={item.value} value={item.value}>
+              <Icon className="size-4" />
+              {item.label}
+              <span className="tabular-nums text-muted-foreground">{counts[item.value]}</span>
+            </TabsTrigger>
+          );
+        })}
       </TabsList>
     </Tabs>
   );
