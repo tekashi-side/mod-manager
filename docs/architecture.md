@@ -540,14 +540,26 @@ Example of the manifest shape we depend on:
 ### Rate limits
 
 Unauthenticated GitHub API requests are limited to **60 per hour per IP**
-(confirmed via `X-RateLimit-Limit: 60`). Findias makes **one** release API request
-per launch; the manifest and mod downloads hit the CDN (`browser_download_url`),
-not the API. This is comfortably within budget. The client should still:
+(confirmed via `X-RateLimit-Limit: 60`). The release API request is the only call
+that counts against this budget; the manifest and mod downloads hit the CDN
+(`browser_download_url`), not the API. Findias keeps well within budget by:
 
-- Read `X-RateLimit-Remaining` / `X-RateLimit-Reset` and surface a friendly
+- **Caching the parsed catalog in memory** (per `includePrereleases`) in
+  `ManifestCatalogProvider`, so a burst of IPC handlers (install/delete/disable)
+  reuses one fetch instead of one call each. A short TTL serves repeat calls with
+  no request at all; the catalog is never written to disk (see design goal #4).
+- **Conditional requests.** The cached feed's `ETag` is sent as `If-None-Match`;
+  an unchanged feed returns `304 Not Modified`, which **does not count against the
+  rate limit**, and the cached catalog is reused (no manifest re-download).
+- Reading `X-RateLimit-Remaining` / `X-RateLimit-Reset` and surfacing a friendly
   "try again later" message on `403` rate-limit responses instead of failing
-  silently.
-- Handle offline / DNS / timeout errors and let the UI show a retry state.
+  silently. If revalidation fails transiently (offline / rate-limited) but a
+  cached catalog exists, it is served rather than surfacing an error.
+- Handling offline / DNS / timeout errors and letting the UI show a retry state.
+
+The renderer also treats the mod list as long-lived (React Query `staleTime:
+Infinity`, no refetch on focus/reconnect); it is fetched once on launch and
+otherwise only via the explicit Refresh button, which forces a revalidation.
 
 ### Downloading assets
 
@@ -561,6 +573,31 @@ not the API. This is comfortably within budget. The client should still:
   success. On failure/cancel, delete the temp file. This guarantees the
   `package` folder never contains a half-written `.it` that the game would try
   to load.
+
+### Debugging network requests (dev)
+
+All networking happens in the **main process**, so requests never appear in the
+renderer's DevTools **Network** tab. To observe them (including the `200` ->
+`304` transitions from conditional caching and the remaining rate-limit quota),
+set the **`FINDIAS_LOG_NETWORK`** environment variable. It wraps the catalog
+provider's `fetch` (covering the releases API, `manifestCatalog.json`, and every
+`.it` download) with a logger:
+
+| Value         | Effect                                                                |
+| ------------- | --------------------------------------------------------------------- |
+| _unset_       | On in development (`!app.isPackaged`), off in packaged builds.        |
+| `0` / `false` | Force off, even in development.                                       |
+| `1` / `true`  | Force on (concise one-line logs), even in a packaged build.           |
+| `verbose`     | Force on and also dump request + response headers (secrets redacted). |
+
+- Output goes to the **main-process stdout** — the terminal running
+  `npm run dev` — not the renderer console.
+- The logger reads headers only and never consumes the response body, so
+  streamed downloads are unaffected. The logged duration is time-to-response
+  (headers), not full transfer time.
+- `verbose` is the way to confirm the conditional request is well-formed (that
+  `If-None-Match` is actually being sent), which disambiguates a `200` from a
+  `304`.
 
 ## Local integration: the `package` folder
 

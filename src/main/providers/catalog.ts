@@ -51,13 +51,23 @@ export interface Catalog {
   groups: CatalogGroup[];
 }
 
+/** Per-call options for {@link ModCatalogProvider.getCatalog}. */
+export interface GetCatalogOptions {
+  /**
+   * Bypass the in-memory time-to-live and revalidate against the source now.
+   * The implementation may still return a cached catalog if the source reports
+   * nothing changed (e.g. an HTTP `304`), which stays free of rate-limit cost.
+   */
+  force?: boolean;
+}
+
 /**
  * Source-agnostic remote catalog. Kept as a one-implementation interface purely
  * so tests can inject a stubbed `fetch`. `includePrereleases` controls whether
  * prerelease GitHub releases are eligible when selecting the newest one.
  */
 export interface ModCatalogProvider {
-  getCatalog(includePrereleases: boolean): Promise<Catalog>;
+  getCatalog(includePrereleases: boolean, options?: GetCatalogOptions): Promise<Catalog>;
 }
 
 export type CatalogErrorCode = 'network' | 'rate-limited' | 'http' | 'parse' | 'not-found';

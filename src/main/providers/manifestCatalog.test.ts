@@ -182,3 +182,100 @@ describe('ManifestCatalogProvider', () => {
     await expect(provider.getCatalog(true)).rejects.toMatchObject({ code: 'network' });
   });
 });
+
+const RATE_LIMIT_RESET = String(Math.ceil(Date.now() / 1000) + 600);
+
+describe('ManifestCatalogProvider caching', () => {
+  it('serves a cached catalog without re-fetching within the TTL', async () => {
+    const { fetchFn, requested } = makeFetch(releaseWith(defaultAssets));
+    const provider = createManifestCatalogProvider({ fetchFn });
+
+    const first = await provider.getCatalog(true);
+    const countAfterFirst = requested.length;
+    const second = await provider.getCatalog(true);
+
+    expect(second).toBe(first); // same cached object, no rebuild
+    expect(requested.length).toBe(countAfterFirst); // no additional network calls
+  });
+
+  it('revalidates on force and reuses the cache on a 304 (no manifest re-download)', async () => {
+    const requested: string[] = [];
+    let releasesCalls = 0;
+    const fetchFn: FetchLike = async (input, init) => {
+      const url = String(input);
+      requested.push(url);
+      if (url.endsWith('/releases')) {
+        releasesCalls += 1;
+        if (releasesCalls === 1) {
+          return jsonResponse(releaseWith(defaultAssets), { headers: { ETag: 'v1' } });
+        }
+        // A forced revalidation must send the cached ETag as If-None-Match.
+        expect(new Headers(init?.headers).get('if-none-match')).toBe('v1');
+        return new Response(null, { status: 304 });
+      }
+      if (url === MANIFEST_URL) return jsonResponse(manifest);
+      return new Response('filebytes');
+    };
+    const provider = createManifestCatalogProvider({ fetchFn });
+
+    const first = await provider.getCatalog(true);
+    const manifestDownloads = requested.filter((u) => u === MANIFEST_URL).length;
+    const second = await provider.getCatalog(true, { force: true });
+
+    expect(second).toBe(first); // cache reused on 304
+    expect(releasesCalls).toBe(2); // the feed was revalidated
+    expect(requested.filter((u) => u === MANIFEST_URL).length).toBe(manifestDownloads); // not re-downloaded
+  });
+
+  it('rebuilds the catalog when a forced revalidation returns a changed feed (200)', async () => {
+    let releasesCalls = 0;
+    const updatedManifest = {
+      ...manifest,
+      metadata: { ...manifest.metadata, currentGameVersion: '9.9.9' },
+    };
+    const fetchFn: FetchLike = async (input) => {
+      const url = String(input);
+      if (url.endsWith('/releases')) {
+        releasesCalls += 1;
+        return jsonResponse(releaseWith(defaultAssets), {
+          headers: { ETag: releasesCalls === 1 ? 'v1' : 'v2' },
+        });
+      }
+      if (url === MANIFEST_URL)
+        return jsonResponse(releasesCalls === 1 ? manifest : updatedManifest);
+      return new Response('filebytes');
+    };
+    const provider = createManifestCatalogProvider({ fetchFn });
+
+    const first = await provider.getCatalog(true);
+    expect(first.metadata.currentGameVersion).toBe('1.2.4');
+
+    const second = await provider.getCatalog(true, { force: true });
+    expect(second.metadata.currentGameVersion).toBe('9.9.9');
+  });
+
+  it('serves the cached catalog when a forced revalidation is rate-limited', async () => {
+    let releasesCalls = 0;
+    const fetchFn: FetchLike = async (input) => {
+      const url = String(input);
+      if (url.endsWith('/releases')) {
+        releasesCalls += 1;
+        if (releasesCalls === 1) {
+          return jsonResponse(releaseWith(defaultAssets), { headers: { ETag: 'v1' } });
+        }
+        return new Response('rate limited', {
+          status: 403,
+          headers: { 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': RATE_LIMIT_RESET },
+        });
+      }
+      if (url === MANIFEST_URL) return jsonResponse(manifest);
+      return new Response('filebytes');
+    };
+    const provider = createManifestCatalogProvider({ fetchFn });
+
+    const first = await provider.getCatalog(true);
+    const second = await provider.getCatalog(true, { force: true });
+
+    expect(second).toBe(first); // transient rate-limit falls back to the cache
+  });
+});

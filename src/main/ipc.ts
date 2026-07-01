@@ -15,7 +15,31 @@ import { installOrUpdateMod } from './modInstaller';
 import { createPackageModStore } from './modStore';
 import { CatalogError, type Catalog } from './providers/catalog';
 import { createManifestCatalogProvider } from './providers/manifestCatalog';
+import { createLoggingFetch } from './providers/loggingFetch';
 import { createPackageFolderProvider } from './providers/packageFolder';
+
+/**
+ * Resolve the dev network logger from `FINDIAS_LOG_NETWORK` (tri-state):
+ * unset -> on in development, off when packaged; `0`/`false` -> force off;
+ * `1`/`true` -> force on; `verbose` -> force on and also dump (redacted) headers.
+ * Returns `undefined` when logging is off, so the default `fetch` is used.
+ */
+const resolveLoggingFetch = () => {
+  const mode = process.env.FINDIAS_LOG_NETWORK;
+  const off = mode === '0' || mode === 'false';
+  const on = mode === '1' || mode === 'true' || mode === 'verbose' || (!off && !app.isPackaged);
+  return on ? createLoggingFetch({ verbose: mode === 'verbose' }) : undefined;
+};
+
+/**
+ * A single catalog provider for the whole main process. Constructing it once
+ * lets its in-memory catalog cache survive across IPC calls, so a burst of
+ * mutations reuses one release-feed fetch instead of one per handler.
+ */
+const loggingFetch = resolveLoggingFetch();
+const catalogProvider = createManifestCatalogProvider(
+  loggingFetch ? { fetchFn: loggingFetch } : {},
+);
 
 /** Resolve the current setup state by re-validating the stored path on disk. */
 const computeSetupState = async (): Promise<SetupState> => {
@@ -46,11 +70,14 @@ const requireGamePaths = async (): Promise<GamePaths> => {
  * softly — installed mods are still returned (as orphans) so the user can manage
  * them, and the failure is reported via `catalog.available`.
  */
-const resolveCurrentState = async (paths: GamePaths): Promise<ModListState> => {
+const resolveCurrentState = async (
+  paths: GamePaths,
+  options: { force?: boolean } = {},
+): Promise<ModListState> => {
   const { includePrereleases } = await loadSettings();
   const installed = await createPackageFolderProvider(paths).list();
   try {
-    const catalog = await createManifestCatalogProvider().getCatalog(includePrereleases);
+    const catalog = await catalogProvider.getCatalog(includePrereleases, { force: options.force });
     const { groups, metadata } = resolveModList(catalog, installed);
     return { groups, catalog: { available: true }, metadata };
   } catch (error) {
@@ -61,7 +88,11 @@ const resolveCurrentState = async (paths: GamePaths): Promise<ModListState> => {
   }
 };
 
-const refresh = async (): Promise<ModListState> => resolveCurrentState(await requireGamePaths());
+// The Refresh button is the explicit "check for updates" action, so it forces a
+// revalidation (a free 304 when the feed is unchanged) rather than serving the
+// TTL-cached catalog.
+const refresh = async (): Promise<ModListState> =>
+  resolveCurrentState(await requireGamePaths(), { force: true });
 
 /** Locate a variant + its group in the catalog by modId. */
 const findVariant = (
@@ -87,7 +118,7 @@ const findVariant = (
 const installOrUpdate = async (event: IpcMainInvokeEvent, modId: string): Promise<ModListState> => {
   const paths = await requireGamePaths();
   const { includePrereleases } = await loadSettings();
-  const catalog = await createManifestCatalogProvider().getCatalog(includePrereleases);
+  const catalog = await catalogProvider.getCatalog(includePrereleases);
   const found = findVariant(catalog, modId);
   if (!found) {
     throw new Error(`"${modId}" is not available in the latest release.`);

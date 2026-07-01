@@ -62,16 +62,33 @@ const rateLimitMessage = (resetHeader: string | null): string => {
   return "GitHub's hourly rate limit was reached. Please try again later.";
 };
 
-/** Request the repo's releases feed, mapping connection failures to `CatalogError`. */
-const fetchReleases = async (options: ResolvedReleaseOptions): Promise<Response> => {
+/**
+ * Result of fetching the releases feed with an optional conditional request.
+ * `not-modified` means GitHub answered `304` (the caller's cached data is still
+ * current); `ok` carries the newest eligible release's assets (or `null` when no
+ * release matches) plus the response `ETag` for the next conditional request.
+ */
+export type ReleasesResult =
+  | { status: 'not-modified' }
+  | { status: 'ok'; assets: ReleaseAsset[] | null; etag: string | null };
+
+/**
+ * Request the repo's releases feed, mapping connection failures to `CatalogError`.
+ * When an `etag` is supplied it is sent as `If-None-Match`, so GitHub can answer
+ * `304 Not Modified` — a response that does not count against the rate limit.
+ */
+const fetchReleases = async (
+  options: ResolvedReleaseOptions,
+  etag: string | null,
+): Promise<Response> => {
   const url = `${options.baseUrl}/repos/${options.owner}/${options.repo}/releases`;
+  const headers: Record<string, string> = {
+    Accept: 'application/vnd.github+json',
+    'User-Agent': 'Findias',
+  };
+  if (etag) headers['If-None-Match'] = etag;
   try {
-    return await options.fetchFn(url, {
-      headers: {
-        Accept: 'application/vnd.github+json',
-        'User-Agent': 'Findias',
-      },
-    });
+    return await options.fetchFn(url, { headers });
   } catch (cause) {
     throw new CatalogError(
       'network',
@@ -83,16 +100,23 @@ const fetchReleases = async (options: ResolvedReleaseOptions): Promise<Response>
 
 /**
  * Fetch the releases feed and return the assets of the newest eligible release,
- * mapping every failure mode to a typed `CatalogError`. Returns `null` when no
- * release matches (e.g. prereleases excluded and only prereleases exist). We use
- * the list endpoint (not `/releases/latest`) so prereleases can be included.
+ * mapping every failure mode to a typed `CatalogError`. When `etag` is provided
+ * and GitHub responds `304`, returns `{ status: 'not-modified' }` (a free,
+ * non-rate-limited response) so the caller can reuse its cache. Otherwise returns
+ * `{ status: 'ok', assets, etag }`, where `assets` is `null` when no release
+ * matches (e.g. prereleases excluded and only prereleases exist). We use the list
+ * endpoint (not `/releases/latest`) so prereleases can be included.
  */
 export const fetchLatestReleaseAssets = async (
   options: ResolvedReleaseOptions,
   includePrereleases: boolean,
-): Promise<ReleaseAsset[] | null> => {
-  const response = await fetchReleases(options);
+  etag: string | null = null,
+): Promise<ReleasesResult> => {
+  const response = await fetchReleases(options, etag);
 
+  if (response.status === 304) {
+    return { status: 'not-modified' };
+  }
   if (response.status === 403 && response.headers.get('x-ratelimit-remaining') === '0') {
     throw new CatalogError(
       'rate-limited',
@@ -105,6 +129,8 @@ export const fetchLatestReleaseAssets = async (
       `GitHub returned an unexpected response (HTTP ${response.status}).`,
     );
   }
+
+  const responseEtag = response.headers.get('etag');
 
   let json: unknown;
   try {
@@ -129,12 +155,12 @@ export const fetchLatestReleaseAssets = async (
     if (!includePrereleases && entry.prerelease === true) return false;
     return true;
   });
-  if (!release) return null;
+  if (!release) return { status: 'ok', assets: null, etag: responseEtag };
 
   const assets: ReleaseAsset[] = [];
   for (const rawAsset of release.assets ?? []) {
     const asset = assetSchema.safeParse(rawAsset);
     if (asset.success) assets.push(asset.data);
   }
-  return assets;
+  return { status: 'ok', assets, etag: responseEtag };
 };

@@ -39,6 +39,8 @@ const MainView: FC = () => {
     queryFn: () => window.findias.refresh(),
   });
 
+  console.log(data);
+
   useEffect(() => {
     return window.findias.onDownloadProgress((progress) => {
       setProgressByMod((prev) => ({ ...prev, [progress.modId]: progress }));
