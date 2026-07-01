@@ -50,6 +50,16 @@ export interface ModVariantRow {
    * and the UI shows which mods to disable/delete first.
    */
   conflicts: ModConflict[];
+  /** Mod author, from the catalog (absent for orphans). */
+  modAuthor?: string;
+  /** Additional credits, from the catalog (absent for orphans). */
+  modAdditionalCredits?: string;
+  /** Recent update notes, from the catalog (absent for orphans). */
+  recentUpdateNotes?: string;
+  /** README markdown for this variant, when the catalog provides it. */
+  readme?: string;
+  /** Release-pinned image URLs for this variant's carousel, when provided. */
+  images?: string[];
 }
 
 /** A catalog group: a single mod, or a mutually-exclusive set of variants. */
@@ -64,6 +74,10 @@ export interface ModGroupRow {
   /** modId of the currently-installed variant in this group, if any. */
   installedVariantId: string | null;
   variants: ModVariantRow[];
+  /** Group-level README markdown, used as a fallback when a variant has none. */
+  readme?: string;
+  /** Group-level image URLs, used as a fallback when a variant has none. */
+  images?: string[];
 }
 
 /** Catalog-wide metadata for the renderer, including the derived freshness flag. */

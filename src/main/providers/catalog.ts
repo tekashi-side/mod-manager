@@ -23,6 +23,10 @@ export interface CatalogVariant {
   modAuthor: string;
   modAdditionalCredits: string;
   recentUpdateNotes: string;
+  /** README markdown for this variant, when the manifest provides it. */
+  readme?: string;
+  /** Release-pinned image URLs for this variant's carousel, when provided. */
+  images?: string[];
   /** Opens a byte stream for the mod file, hiding the source URL/transport. */
   fetchBytes(): Promise<ReadableStream<Uint8Array>>;
 }
@@ -35,6 +39,10 @@ export interface CatalogGroup {
   hasVariants: boolean;
   mutuallyExclusive: boolean;
   variants: CatalogVariant[];
+  /** Group-level README markdown, when provided (a variant may override it). */
+  readme?: string;
+  /** Group-level image URLs, when provided (a variant may override them). */
+  images?: string[];
 }
 
 /** Catalog-wide metadata read from the manifest's `metadata` block. */

@@ -38,6 +38,10 @@ export const manifestVariantSchema = z.object({
   modAuthor: z.string().min(1),
   modAdditionalCredits: z.string().min(1),
   recentUpdateNotes: z.string().min(1),
+  // Optional docs (a newer producer may add them): the README markdown and
+  // release-pinned image URLs. Absent on older manifests, so kept optional.
+  readme: z.string().optional(),
+  images: z.array(z.string()).optional(),
 });
 
 /** A catalog group. Every manifest entry is a group (a non-variant mod is a group of one). */
@@ -49,6 +53,9 @@ export const manifestGroupSchema = z.object({
   hasVariants: z.boolean(),
   mutuallyExclusive: z.boolean(),
   variants: z.array(manifestVariantSchema).min(1),
+  // Optional group-level docs (a variant may override with its own).
+  readme: z.string().optional(),
+  images: z.array(z.string()).optional(),
 });
 
 /** Catalog-wide metadata; open to new top-level fields a newer producer may add. */

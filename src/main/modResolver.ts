@@ -153,6 +153,11 @@ const buildVariantRow = (
     updateType: variant.updateType,
     actions,
     conflicts,
+    modAuthor: variant.modAuthor,
+    modAdditionalCredits: variant.modAdditionalCredits,
+    recentUpdateNotes: variant.recentUpdateNotes,
+    readme: variant.readme,
+    images: variant.images,
   };
 };
 
@@ -235,6 +240,8 @@ export const resolveModList = (
       mutuallyExclusive: group.mutuallyExclusive,
       installedVariantId: installedVariantId(group, installedByModId),
       variants,
+      readme: group.readme,
+      images: group.images,
     };
   });
 

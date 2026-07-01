@@ -136,6 +136,51 @@ describe('ManifestCatalogProvider', () => {
     });
   });
 
+  it('maps optional readme + images onto the group and variant', async () => {
+    const withDocs = {
+      ...manifest,
+      modList: [
+        {
+          ...manifest.modList[0],
+          readme: '# Group readme',
+          images: ['https://raw.githubusercontent.com/Root50199/Uiscias/v5/mods/A/images/g.png'],
+          variants: [
+            {
+              ...manifest.modList[0].variants[0],
+              readme: '# Variant readme',
+              images: [
+                'https://raw.githubusercontent.com/Root50199/Uiscias/v5/mods/A/images/v.png',
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const { fetchFn } = makeFetch(releaseWith(defaultAssets), withDocs);
+    const provider = createManifestCatalogProvider({ fetchFn });
+
+    const catalog = await provider.getCatalog(true);
+    expect(catalog.groups[0].readme).toBe('# Group readme');
+    expect(catalog.groups[0].images).toEqual([
+      'https://raw.githubusercontent.com/Root50199/Uiscias/v5/mods/A/images/g.png',
+    ]);
+    expect(catalog.groups[0].variants[0].readme).toBe('# Variant readme');
+    expect(catalog.groups[0].variants[0].images).toEqual([
+      'https://raw.githubusercontent.com/Root50199/Uiscias/v5/mods/A/images/v.png',
+    ]);
+  });
+
+  it('leaves readme + images undefined when the manifest omits them', async () => {
+    const { fetchFn } = makeFetch(releaseWith(defaultAssets));
+    const provider = createManifestCatalogProvider({ fetchFn });
+
+    const catalog = await provider.getCatalog(true);
+    expect(catalog.groups[0].readme).toBeUndefined();
+    expect(catalog.groups[0].images).toBeUndefined();
+    expect(catalog.groups[0].variants[0].readme).toBeUndefined();
+    expect(catalog.groups[0].variants[0].images).toBeUndefined();
+  });
+
   it('resolves variant bytes from the matching .it asset url', async () => {
     const { fetchFn, requested } = makeFetch(releaseWith(defaultAssets));
     const provider = createManifestCatalogProvider({ fetchFn });

@@ -11,10 +11,22 @@ type ModListProps = {
   progressByMod: Record<string, DownloadProgress>;
   outdated: boolean;
   onAction: (action: ModAction, modId: string) => void;
+  /** Currently-selected variant modId, highlighted and shown in the detail pane. */
+  selectedModId: string | null;
+  /** Select a variant to open it in the detail pane. */
+  onSelect: (modId: string) => void;
 };
 
 /** Render the grouped mod catalog: variant groups as accordions, single mods as rows. */
-const ModList: FC<ModListProps> = ({ groups, busyModId, progressByMod, outdated, onAction }) => {
+const ModList: FC<ModListProps> = ({
+  groups,
+  busyModId,
+  progressByMod,
+  outdated,
+  onAction,
+  selectedModId,
+  onSelect,
+}) => {
   return (
     <ItemGroup className="gap-2">
       {groups.map((group) =>
@@ -26,6 +38,8 @@ const ModList: FC<ModListProps> = ({ groups, busyModId, progressByMod, outdated,
             progressByMod={progressByMod}
             outdated={outdated}
             onAction={onAction}
+            selectedModId={selectedModId}
+            onSelect={onSelect}
           />
         ) : (
           <ModListItem
@@ -36,6 +50,8 @@ const ModList: FC<ModListProps> = ({ groups, busyModId, progressByMod, outdated,
             progress={progressByMod[group.variants[0].modId]}
             outdated={outdated}
             onAction={onAction}
+            selected={group.variants[0].modId === selectedModId}
+            onSelect={onSelect}
           />
         ),
       )}

@@ -21,6 +21,10 @@ type VariantGroupItemProps = {
   progressByMod: Record<string, DownloadProgress>;
   outdated: boolean;
   onAction: (action: ModAction, modId: string) => void;
+  /** Currently-selected variant modId (highlighted in the list). */
+  selectedModId: string | null;
+  /** Select a variant to open it in the detail pane. */
+  onSelect: (modId: string) => void;
 };
 
 /**
@@ -36,6 +40,8 @@ const VariantGroupItem: FC<VariantGroupItemProps> = ({
   progressByMod,
   outdated,
   onAction,
+  selectedModId,
+  onSelect,
 }) => {
   const [open, setOpen] = useState(false);
   const installed = group.variants.find((variant) => variant.modId === group.installedVariantId);
@@ -85,6 +91,8 @@ const VariantGroupItem: FC<VariantGroupItemProps> = ({
               progress={progressByMod[variant.modId]}
               outdated={outdated}
               onAction={onAction}
+              selected={variant.modId === selectedModId}
+              onSelect={onSelect}
             />
           ))}
         </ItemGroup>

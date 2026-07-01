@@ -74,6 +74,38 @@ describe('resolveModList', () => {
     });
   });
 
+  it('surfaces variant docs + author metadata on the row', () => {
+    const v: CatalogVariant = {
+      ...variant('Foo', 1),
+      modAuthor: 'Neko',
+      modAdditionalCredits: 'Bri',
+      recentUpdateNotes: 'Fixed X',
+      readme: '# Foo',
+      images: ['https://raw.githubusercontent.com/Root50199/Uiscias/v1/mods/Foo/images/a.png'],
+    };
+    const result = resolveModList(catalogOf([soloGroup(v)]), []);
+    expect(firstVariant(result)).toMatchObject({
+      modAuthor: 'Neko',
+      modAdditionalCredits: 'Bri',
+      recentUpdateNotes: 'Fixed X',
+      readme: '# Foo',
+      images: ['https://raw.githubusercontent.com/Root50199/Uiscias/v1/mods/Foo/images/a.png'],
+    });
+  });
+
+  it('carries group-level readme + images onto the group row', () => {
+    const group: CatalogGroup = {
+      ...soloGroup(variant('Foo', 1)),
+      readme: '# Group',
+      images: ['https://raw.githubusercontent.com/Root50199/Uiscias/v1/mods/Foo/images/g.png'],
+    };
+    const result = resolveModList(catalogOf([group]), []);
+    expect(result.groups[0]).toMatchObject({
+      readme: '# Group',
+      images: ['https://raw.githubusercontent.com/Root50199/Uiscias/v1/mods/Foo/images/g.png'],
+    });
+  });
+
   it('marks a matching enabled mod as up-to-date', () => {
     const result = resolveModList(catalogOf([soloGroup(variant('Foo', 3))]), [
       installed('Foo', 3, true),

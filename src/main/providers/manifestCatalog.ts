@@ -43,6 +43,8 @@ const makeVariant = (
   modAuthor: variant.modAuthor,
   modAdditionalCredits: variant.modAdditionalCredits,
   recentUpdateNotes: variant.recentUpdateNotes,
+  readme: variant.readme,
+  images: variant.images,
   fetchBytes: async (): Promise<ReadableStream<Uint8Array>> => {
     const url = urlByFileName.get(variant.fileName);
     if (!url) {
@@ -132,6 +134,8 @@ const buildCatalog = async (
     hasVariants: group.hasVariants,
     mutuallyExclusive: group.mutuallyExclusive,
     variants: group.variants.map((variant) => makeVariant(variant, urlByFileName, options.fetchFn)),
+    readme: group.readme,
+    images: group.images,
   }));
 
   return { metadata, groups };
