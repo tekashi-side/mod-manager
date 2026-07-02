@@ -30,7 +30,11 @@ type ModDetailProps = {
  * Applied to a wrapper so react-markdown's plain elements read as prose.
  */
 const PROSE =
-  'text-sm leading-relaxed break-words ' +
+  // `wrap-anywhere` (overflow-wrap: anywhere), not `break-words`: only `anywhere`
+  // shrinks the element's min-content size, so a giant unbroken word can't force
+  // the column (and the ScrollArea's inner display:table wrapper) wider than its
+  // container.
+  'text-sm leading-relaxed wrap-anywhere ' +
   '[&_h1]:mt-0 [&_h1]:mb-2 [&_h1]:text-lg [&_h1]:font-semibold ' +
   '[&_h2]:mt-4 [&_h2]:mb-2 [&_h2]:text-base [&_h2]:font-semibold ' +
   '[&_h3]:mt-3 [&_h3]:mb-1 [&_h3]:text-sm [&_h3]:font-semibold ' +
@@ -115,7 +119,7 @@ const ModDetail: FC<ModDetailProps> = ({ variant, group }) => {
       <div className="flex flex-col gap-4 p-6">
         <div className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-lg font-semibold break-words">{variant.name}</h2>
+            <h2 className="text-lg font-semibold wrap-anywhere">{variant.name}</h2>
             <StatusChip status={variant.status} />
           </div>
 
