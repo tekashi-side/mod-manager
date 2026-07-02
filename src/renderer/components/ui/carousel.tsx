@@ -161,10 +161,13 @@ function CarouselPrevious({
       variant={variant}
       size={size}
       className={cn(
+        // Center with a calc offset rather than -translate-y-1/2: the app's
+        // Button uses `active:translate-y-px`, which would otherwise override the
+        // centering transform and make the button jump on click. size-8 = 2rem.
         'absolute size-8 rounded-full',
         orientation === 'horizontal'
-          ? 'top-1/2 -left-3 -translate-y-1/2'
-          : '-top-3 left-1/2 -translate-x-1/2 rotate-90',
+          ? 'top-[calc(50%-1rem)] -left-3'
+          : '-top-3 left-[calc(50%-1rem)] rotate-90',
         className,
       )}
       disabled={!canScrollPrev}
@@ -191,10 +194,11 @@ function CarouselNext({
       variant={variant}
       size={size}
       className={cn(
+        // See CarouselPrevious: calc centering avoids the Button active-press jump.
         'absolute size-8 rounded-full',
         orientation === 'horizontal'
-          ? 'top-1/2 -right-3 -translate-y-1/2'
-          : '-bottom-3 left-1/2 -translate-x-1/2 rotate-90',
+          ? 'top-[calc(50%-1rem)] -right-3'
+          : '-bottom-3 left-[calc(50%-1rem)] rotate-90',
         className,
       )}
       disabled={!canScrollNext}

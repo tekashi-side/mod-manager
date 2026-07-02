@@ -60,8 +60,14 @@ const CarouselImage: FC<{ src: string; alt: string }> = ({ src, alt }) => {
   const [state, setState] = useState<'loading' | 'loaded' | 'error'>('loading');
 
   return (
-    <div className="relative flex h-56 items-center justify-center overflow-hidden rounded-lg bg-muted">
-      {state === 'loading' && <Skeleton className="absolute inset-0 rounded-lg" />}
+    <div className="relative flex h-56 items-center justify-center overflow-hidden rounded-lg bg-[color-mix(in_oklch,var(--muted),black_20%)]">
+      {/*
+       * We modify the background color of the skeleton loader to match the
+       * container's background color so we don't get an odd color flash after the skeleton finishes loading.
+       */}
+      {state === 'loading' && (
+        <Skeleton className="absolute inset-0 rounded-lg bg-[color-mix(in_oklch,var(--muted),black_20%)]" />
+      )}
       {state === 'error' ? (
         <span className="px-4 text-center text-xs text-muted-foreground">Image unavailable</span>
       ) : (
@@ -136,18 +142,27 @@ const ModDetail: FC<ModDetailProps> = ({ variant, group }) => {
         </div>
 
         {images.length > 0 && (
-          <Carousel className="w-full px-3" opts={{ align: 'start' }}>
-            <CarouselContent>
+          <Carousel className="w-full" opts={{ align: 'start' }}>
+            {/*
+             * Full-bleed slides with spacing between them: instead of the stock
+             * `-ml-4`/`pl-4` gutter (which narrows each slide's content), keep slides
+             * full width (`ml-0` + `pl-0`) and space them with a flex `gap-4`. At rest a
+             * slide fills the container edge-to-edge; the gap sits off-screen and is only
+             * visible while transitioning between slides.
+             */}
+            <CarouselContent className="ml-0 gap-4">
               {images.map((src) => (
-                <CarouselItem key={src}>
+                <CarouselItem key={src} className="pl-0">
                   <CarouselImage src={src} alt={variant.name} />
                 </CarouselItem>
               ))}
             </CarouselContent>
             {images.length > 1 && (
               <>
-                <CarouselPrevious />
-                <CarouselNext />
+                {/* Solid `secondary` (not the default `outline`) so the controls stay
+                 * legible overlaid on full-width images. */}
+                <CarouselPrevious variant="secondary" className="left-2" />
+                <CarouselNext variant="secondary" className="right-2" />
               </>
             )}
           </Carousel>
