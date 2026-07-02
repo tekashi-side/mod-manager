@@ -96,7 +96,7 @@ const ModListItem: FC<ModListItemProps> = ({
   return (
     <Item
       variant="outline"
-      className={cn('cursor-pointer items-start', selected && 'border-primary/60 bg-primary/5')}
+      className={cn('items-start', selected && 'border-primary/60 bg-primary/5')}
       data-selected={selected || undefined}
       onClick={() => onSelect?.(variant.modId)}
     >

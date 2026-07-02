@@ -21,8 +21,10 @@ export interface CatalogVariant {
   /** Repo-relative game files this variant modifies; drives conflict detection. */
   usedFiles: string[];
   modAuthor: string;
-  modAdditionalCredits: string;
-  recentUpdateNotes: string;
+  /** Additional credits, when the manifest provides them. */
+  modAdditionalCredits?: string;
+  /** Recent update notes, when the manifest provides them. */
+  recentUpdateNotes?: string;
   /** README markdown for this variant, when the manifest provides it. */
   readme?: string;
   /** Release-pinned image URLs for this variant's carousel, when provided. */

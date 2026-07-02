@@ -16,8 +16,6 @@ const variant = (
   updateType: opts.updateType ?? 'stable',
   usedFiles: opts.usedFiles ?? [],
   modAuthor: 'Root50199',
-  modAdditionalCredits: 'None',
-  recentUpdateNotes: 'n/a',
   fetchBytes: async (): Promise<ReadableStream<Uint8Array>> => new ReadableStream<Uint8Array>(),
 });
 
@@ -91,6 +89,12 @@ describe('resolveModList', () => {
       readme: '# Foo',
       images: ['https://raw.githubusercontent.com/Root50199/Uiscias/v1/mods/Foo/images/a.png'],
     });
+  });
+
+  it('leaves credits + notes undefined when the variant omits them', () => {
+    const result = resolveModList(catalogOf([soloGroup(variant('Foo', 1))]), []);
+    expect(firstVariant(result).modAdditionalCredits).toBeUndefined();
+    expect(firstVariant(result).recentUpdateNotes).toBeUndefined();
   });
 
   it('carries group-level readme + images onto the group row', () => {

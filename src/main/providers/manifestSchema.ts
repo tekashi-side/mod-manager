@@ -36,8 +36,9 @@ export const manifestVariantSchema = z.object({
   updateType: updateTypeSchema,
   usedFiles: z.array(z.string()),
   modAuthor: z.string().min(1),
-  modAdditionalCredits: z.string().min(1),
-  recentUpdateNotes: z.string().min(1),
+  // Optional: a producer omits these when the mod's config leaves them unset.
+  modAdditionalCredits: z.string().min(1).optional(),
+  recentUpdateNotes: z.string().min(1).optional(),
   // Optional docs (a newer producer may add them): the README markdown and
   // release-pinned image URLs. Absent on older manifests, so kept optional.
   readme: z.string().optional(),

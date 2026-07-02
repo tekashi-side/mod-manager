@@ -1,10 +1,11 @@
 import { useState, type FC } from 'react';
+import { Info } from 'lucide-react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { ModGroupRow, ModVariantRow } from '@shared/modList';
 import StatusChip from './StatusChip';
 import { formatBytes } from '../format';
-import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   Carousel,
   CarouselContent,
@@ -127,17 +128,18 @@ const ModDetail: FC<ModDetailProps> = ({ variant, group }) => {
                   By <span className="text-foreground">{variant.modAuthor}</span>
                 </span>
               )}
-              {variant.modAdditionalCredits && variant.modAdditionalCredits !== 'None' && (
-                <span>Credits: {variant.modAdditionalCredits}</span>
-              )}
+              {variant.modAdditionalCredits && <span>Credits: {variant.modAdditionalCredits}</span>}
             </div>
           )}
 
-          {variant.recentUpdateNotes && variant.recentUpdateNotes !== 'n/a' && (
-            <div className="flex flex-wrap items-center gap-2 text-sm">
-              <Badge variant="outline">Recent update</Badge>
-              <span className="text-muted-foreground">{variant.recentUpdateNotes}</span>
-            </div>
+          {variant.recentUpdateNotes && (
+            <Alert className="border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
+              <Info />
+              <AlertTitle>Recent update</AlertTitle>
+              <AlertDescription className="text-emerald-700/90 dark:text-emerald-400/90">
+                {variant.recentUpdateNotes}
+              </AlertDescription>
+            </Alert>
           )}
         </div>
 

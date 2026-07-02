@@ -27,8 +27,8 @@ const manifest = {
           updateType: 'volatile',
           usedFiles: ['data/db/AchievementTable.xml'],
           modAuthor: 'Root50199',
-          modAdditionalCredits: 'None',
-          recentUpdateNotes: 'n/a',
+          modAdditionalCredits: 'Original concept by Neko',
+          recentUpdateNotes: 'Rebuilt for game 1.2.4',
         },
       ],
     },
@@ -48,8 +48,6 @@ const manifest = {
           updateType: 'volatile',
           usedFiles: ['data/db/Race.xml'],
           modAuthor: 'Root50199',
-          modAdditionalCredits: 'None',
-          recentUpdateNotes: 'n/a',
         },
         {
           modId: 'BriHpBars1And3',
@@ -60,8 +58,6 @@ const manifest = {
           updateType: 'volatile',
           usedFiles: ['data/db/Race.xml'],
           modAuthor: 'Root50199',
-          modAdditionalCredits: 'None',
-          recentUpdateNotes: 'n/a',
         },
       ],
     },
@@ -133,6 +129,9 @@ describe('ManifestCatalogProvider', () => {
       size: 20838,
       updateType: 'volatile',
       usedFiles: ['data/db/AchievementTable.xml'],
+      modAuthor: 'Root50199',
+      modAdditionalCredits: 'Original concept by Neko',
+      recentUpdateNotes: 'Rebuilt for game 1.2.4',
     });
   });
 
@@ -170,15 +169,18 @@ describe('ManifestCatalogProvider', () => {
     ]);
   });
 
-  it('leaves readme + images undefined when the manifest omits them', async () => {
+  it('leaves optional fields undefined when the manifest omits them', async () => {
     const { fetchFn } = makeFetch(releaseWith(defaultAssets));
     const provider = createManifestCatalogProvider({ fetchFn });
 
     const catalog = await provider.getCatalog(true);
+    // Group 0 carries no readme/images; the BriHpBars variants carry no credits/notes.
     expect(catalog.groups[0].readme).toBeUndefined();
     expect(catalog.groups[0].images).toBeUndefined();
     expect(catalog.groups[0].variants[0].readme).toBeUndefined();
     expect(catalog.groups[0].variants[0].images).toBeUndefined();
+    expect(catalog.groups[1].variants[0].modAdditionalCredits).toBeUndefined();
+    expect(catalog.groups[1].variants[0].recentUpdateNotes).toBeUndefined();
   });
 
   it('resolves variant bytes from the matching .it asset url', async () => {

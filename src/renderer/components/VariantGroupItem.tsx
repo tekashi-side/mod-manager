@@ -49,7 +49,7 @@ const VariantGroupItem: FC<VariantGroupItemProps> = ({
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
       <CollapsibleTrigger asChild>
-        <Item variant="outline" className="cursor-pointer items-start select-none">
+        <Item variant="outline" className="items-start select-none">
           <ItemContent>
             <ItemTitle className="flex-wrap break-words">
               <span className="break-words">{group.name}</span>
