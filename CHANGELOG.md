@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.2.0](https://github.com/tekashi-side/Findias/compare/v1.1.0...v1.2.0) (2026-07-02)
+
+
+### Features
+
+* enhance mod catalog with README and image support for variants and groups ([bc7a66e](https://github.com/tekashi-side/Findias/commit/bc7a66e48a6f2e388854829b2aa8f10c9e2590ef))
+* implement custom carousel component with improved styling and behavior ([0fedc13](https://github.com/tekashi-side/Findias/commit/0fedc131d43f4ad9be661484ba967497276ebbeb))
+* make modAdditionalCredits and recentUpdateNotes optional in catalog interfaces and tests ([aec57d4](https://github.com/tekashi-side/Findias/commit/aec57d451521fdc9c4f7076c40b6c3f0e9f47736))
+
+
+### Fixes
+
+* prevent long mod names from breaking layout ([8295fad](https://github.com/tekashi-side/Findias/commit/8295fadb6425a016d48dc862faf177f2f551e8dd))
+
 ## [1.1.0](https://github.com/tekashi-side/Findias/compare/v1.0.0...v1.1.0) (2026-07-01)
 
 
