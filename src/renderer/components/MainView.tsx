@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import type { DownloadProgress } from '@shared/api';
 import type { ModAction, ModListState } from '@shared/modList';
 import ModList from './ModList';
+import ModDetail from './ModDetail';
 import ModTabs, { groupMatchesTab, type ModTab } from './ModTabs';
 import { Alert, AlertAction, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -31,6 +32,7 @@ const MainView: FC = () => {
   const [outdatedDismissed, setOutdatedDismissed] = useState(false);
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState<ModTab>('all');
+  const [selectedModId, setSelectedModId] = useState<string | null>(null);
   const deferredSearch = useDeferredValue(search);
 
   const { data, isLoading, isError, error, isFetching, refetch } = useQuery({
@@ -107,6 +109,17 @@ const MainView: FC = () => {
         g.variants.some((v) => v.name.toLowerCase().includes(q)),
     );
   }, [groups, deferredSearch, tab]);
+
+  // Resolve the selected variant + its group from the full (unfiltered) list, so
+  // the detail pane survives search/tab changes that hide the row.
+  const selected = useMemo(() => {
+    if (!selectedModId) return null;
+    for (const group of groups) {
+      const variant = group.variants.find((v) => v.modId === selectedModId);
+      if (variant) return { group, variant };
+    }
+    return null;
+  }, [groups, selectedModId]);
 
   return (
     <div className="flex h-full">
@@ -210,6 +223,8 @@ const MainView: FC = () => {
                   progressByMod={progressByMod}
                   outdated={outdated}
                   onAction={handleAction}
+                  selectedModId={selectedModId}
+                  onSelect={setSelectedModId}
                 />
               </div>
             </ScrollArea>
@@ -219,13 +234,8 @@ const MainView: FC = () => {
 
       <Separator orientation="vertical" />
 
-      <div className="flex h-full w-[35%] min-w-0 items-center justify-center p-6">
-        <Empty>
-          <EmptyHeader>
-            <EmptyTitle>No mod selected</EmptyTitle>
-            <EmptyDescription>Select a mod to view its contents.</EmptyDescription>
-          </EmptyHeader>
-        </Empty>
+      <div className="h-full w-[35%] min-w-0">
+        <ModDetail variant={selected?.variant ?? null} group={selected?.group ?? null} />
       </div>
     </div>
   );

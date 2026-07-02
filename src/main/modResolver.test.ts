@@ -16,8 +16,6 @@ const variant = (
   updateType: opts.updateType ?? 'stable',
   usedFiles: opts.usedFiles ?? [],
   modAuthor: 'Root50199',
-  modAdditionalCredits: 'None',
-  recentUpdateNotes: 'n/a',
   fetchBytes: async (): Promise<ReadableStream<Uint8Array>> => new ReadableStream<Uint8Array>(),
 });
 
@@ -71,6 +69,44 @@ describe('resolveModList', () => {
       installedVersion: null,
       actions: ['install'],
       conflicts: [],
+    });
+  });
+
+  it('surfaces variant docs + author metadata on the row', () => {
+    const v: CatalogVariant = {
+      ...variant('Foo', 1),
+      modAuthor: 'Neko',
+      modAdditionalCredits: 'Bri',
+      recentUpdateNotes: 'Fixed X',
+      readme: '# Foo',
+      images: ['https://raw.githubusercontent.com/Root50199/Uiscias/v1/mods/Foo/images/a.png'],
+    };
+    const result = resolveModList(catalogOf([soloGroup(v)]), []);
+    expect(firstVariant(result)).toMatchObject({
+      modAuthor: 'Neko',
+      modAdditionalCredits: 'Bri',
+      recentUpdateNotes: 'Fixed X',
+      readme: '# Foo',
+      images: ['https://raw.githubusercontent.com/Root50199/Uiscias/v1/mods/Foo/images/a.png'],
+    });
+  });
+
+  it('leaves credits + notes undefined when the variant omits them', () => {
+    const result = resolveModList(catalogOf([soloGroup(variant('Foo', 1))]), []);
+    expect(firstVariant(result).modAdditionalCredits).toBeUndefined();
+    expect(firstVariant(result).recentUpdateNotes).toBeUndefined();
+  });
+
+  it('carries group-level readme + images onto the group row', () => {
+    const group: CatalogGroup = {
+      ...soloGroup(variant('Foo', 1)),
+      readme: '# Group',
+      images: ['https://raw.githubusercontent.com/Root50199/Uiscias/v1/mods/Foo/images/g.png'],
+    };
+    const result = resolveModList(catalogOf([group]), []);
+    expect(result.groups[0]).toMatchObject({
+      readme: '# Group',
+      images: ['https://raw.githubusercontent.com/Root50199/Uiscias/v1/mods/Foo/images/g.png'],
     });
   });
 

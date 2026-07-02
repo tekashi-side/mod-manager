@@ -38,6 +38,10 @@ type ModListItemProps = {
   /** When true, the catalog banner is active, so the updateType chip is shown. */
   outdated: boolean;
   onAction: (action: ModAction, modId: string) => void;
+  /** True when this row is open in the detail pane. */
+  selected?: boolean;
+  /** Select this row to open it in the detail pane. */
+  onSelect?: (modId: string) => void;
 };
 
 const ACTION_LABEL: Record<ModAction, string> = {
@@ -79,6 +83,8 @@ const ModListItem: FC<ModListItemProps> = ({
   progress,
   outdated,
   onAction,
+  selected = false,
+  onSelect,
 }) => {
   const percent =
     progress && progress.totalBytes
@@ -88,7 +94,12 @@ const ModListItem: FC<ModListItemProps> = ({
   const showUpdateType = outdated && variant.updateType !== null;
 
   return (
-    <Item variant="outline" className="items-start">
+    <Item
+      variant="outline"
+      className={cn('items-start', selected && 'border-primary/60 bg-primary/5')}
+      data-selected={selected || undefined}
+      onClick={() => onSelect?.(variant.modId)}
+    >
       <ItemContent>
         <ItemTitle className="flex-wrap break-words">
           <span className="break-words">{variant.name}</span>
@@ -148,7 +159,7 @@ const ModListItem: FC<ModListItemProps> = ({
         )}
       </ItemContent>
 
-      <ItemActions>
+      <ItemActions onClick={(e) => e.stopPropagation()}>
         {variant.actions.map((action) =>
           action === 'delete' ? (
             <AlertDialog key={action}>
